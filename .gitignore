@@ -1,0 +1,10 @@
+.DS_Store
+mailman
+mailman.exe
+coverage.out
+dist/
+.env
+*.db
+*.db-shm
+*.db-wal
+
