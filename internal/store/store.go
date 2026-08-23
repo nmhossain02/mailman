@@ -122,6 +122,18 @@ func (s *DB) PromoteCursor(ctx context.Context, accountID, scope, checkpoint str
 }
 
 func (s *DB) UpsertMessage(ctx context.Context, m core.Message) error {
+	tx, err := s.sql.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err = upsertMessageTx(ctx, tx, m); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func upsertMessageTx(ctx context.Context, tx *sql.Tx, m core.Message) error {
 	recipients, err := json.Marshal(m.Recipients)
 	if err != nil {
 		return err
@@ -130,20 +142,46 @@ func (s *DB) UpsertMessage(ctx context.Context, m core.Message) error {
 	if err != nil {
 		return err
 	}
-	tx, err := s.sql.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	_, err = tx.ExecContext(ctx, `INSERT INTO messages(id,account_id,provider_id,conversation_id,revision,internet_message_id,subject,sender,normalized_body,recipients_json,received_at,is_read,folder_id,tag_ids_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,provider_id=excluded.provider_id,conversation_id=excluded.conversation_id,revision=excluded.revision,internet_message_id=excluded.internet_message_id,subject=excluded.subject,sender=excluded.sender,normalized_body=excluded.normalized_body,recipients_json=excluded.recipients_json,received_at=excluded.received_at,is_read=excluded.is_read,folder_id=excluded.folder_id,tag_ids_json=excluded.tag_ids_json`, m.ID, m.AccountID, m.ProviderID, m.ConversationID, m.Revision, m.InternetMessageID, m.Subject, m.Sender, m.NormalizedBody, recipients, m.ReceivedAt.UTC().Format(time.RFC3339Nano), m.Read, m.FolderID, tags)
-	if err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO messages(id,account_id,provider_id,conversation_id,revision,internet_message_id,subject,sender,normalized_body,recipients_json,received_at,is_read,folder_id,tag_ids_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,provider_id=excluded.provider_id,conversation_id=excluded.conversation_id,revision=excluded.revision,internet_message_id=excluded.internet_message_id,subject=excluded.subject,sender=excluded.sender,normalized_body=excluded.normalized_body,recipients_json=excluded.recipients_json,received_at=excluded.received_at,is_read=excluded.is_read,folder_id=excluded.folder_id,tag_ids_json=excluded.tag_ids_json`, m.ID, m.AccountID, m.ProviderID, m.ConversationID, m.Revision, m.InternetMessageID, m.Subject, m.Sender, m.NormalizedBody, recipients, m.ReceivedAt.UTC().Format(time.RFC3339Nano), m.Read, m.FolderID, tags); err != nil {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM message_search WHERE message_id=?`, m.ID); err != nil {
 		return err
 	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO message_search(message_id,sender,subject,normalized_body) VALUES(?,?,?,?)`, m.ID, m.Sender, m.Subject, m.NormalizedBody); err != nil {
+	_, err = tx.ExecContext(ctx, `INSERT INTO message_search(message_id,sender,subject,normalized_body) VALUES(?,?,?,?)`, m.ID, m.Sender, m.Subject, m.NormalizedBody)
+	return err
+}
+
+// CommitSyncPage persists a provider page atomically. A non-empty checkpoint is
+// supplied only for the final page, so a crash cannot promote partial state.
+func (s *DB) CommitSyncPage(ctx context.Context, accountID, scope string, messages []core.Message, conversations []core.Conversation, deleted []string, checkpoint string, now time.Time) error {
+	tx, err := s.sql.BeginTx(ctx, nil)
+	if err != nil {
 		return err
+	}
+	defer tx.Rollback()
+	for _, c := range conversations {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO conversations(id,account_id,provider_key,subject,last_message_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,provider_key=excluded.provider_key,subject=excluded.subject,last_message_at=excluded.last_message_at`, c.ID, c.AccountID, c.ProviderKey, c.Subject, c.LastMessageAt.UTC().Format(time.RFC3339Nano)); err != nil {
+			return err
+		}
+	}
+	for _, id := range deleted {
+		if _, err = tx.ExecContext(ctx, `DELETE FROM message_search WHERE message_id=?`, id); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `DELETE FROM messages WHERE id=?`, id); err != nil {
+			return err
+		}
+	}
+	for _, m := range messages {
+		if err = upsertMessageTx(ctx, tx, m); err != nil {
+			return err
+		}
+	}
+	if checkpoint != "" {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO cursors(account_id,scope,checkpoint,updated_at) VALUES(?,?,?,?) ON CONFLICT(account_id,scope) DO UPDATE SET checkpoint=excluded.checkpoint,updated_at=excluded.updated_at`, accountID, scope, checkpoint, now.UTC().Format(time.RFC3339Nano)); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }

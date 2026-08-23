@@ -190,3 +190,23 @@ func TestSyncRepositoryMethods(t *testing.T) {
 		t.Fatalf("rules=%+v err=%v", got, err)
 	}
 }
+
+func TestCommitSyncPagePromotesOnlyFinalCheckpoint(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	now := time.Now().UTC()
+	conversation := core.Conversation{ID: "c", AccountID: "a", ProviderKey: "pc", Subject: "s", LastMessageAt: now}
+	message := fixtureMessage("m", "body", now)
+	if err := db.CommitSyncPage(ctx, "a", "inbox", []core.Message{message}, []core.Conversation{conversation}, nil, "", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := db.Cursor(ctx, "a", "inbox"); err != nil || ok {
+		t.Fatalf("intermediate promoted ok=%v err=%v", ok, err)
+	}
+	if err := db.CommitSyncPage(ctx, "a", "inbox", nil, nil, nil, "final", now); err != nil {
+		t.Fatal(err)
+	}
+	if cursor, ok, err := db.Cursor(ctx, "a", "inbox"); err != nil || !ok || cursor != "final" {
+		t.Fatalf("cursor=%q ok=%v err=%v", cursor, ok, err)
+	}
+}
