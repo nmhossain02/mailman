@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nabeel/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/core"
 	_ "modernc.org/sqlite"
 )
 

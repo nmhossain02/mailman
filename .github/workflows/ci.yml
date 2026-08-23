@@ -11,10 +11,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.x'
+          go-version-file: go.mod
           cache: true
       - run: go test ./...
         env:
@@ -22,26 +22,26 @@ jobs:
       - run: go vet ./...
         env:
           CGO_ENABLED: '0'
+      - run: sh -n scripts/install.sh scripts/test-install.sh
+      - run: sh scripts/test-install.sh
 
-  cross-build:
+  release-snapshot:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {goos: linux, goarch: amd64}
-          - {goos: linux, goarch: arm64}
-          - {goos: darwin, goarch: amd64}
-          - {goos: darwin, goarch: arm64}
-          - {goos: windows, goarch: amd64}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.x'
+          go-version-file: go.mod
           cache: true
-      - run: go build -trimpath -o dist/mailman-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/mailman
-        env:
-          CGO_ENABLED: '0'
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --snapshot --clean
+      - name: Verify Linux/macOS release parity
+        run: |
+          test -f dist/mailman_linux_amd64.tar.gz
+          test -f dist/mailman_linux_arm64.tar.gz
+          test -f dist/mailman_darwin_amd64.tar.gz
+          test -f dist/mailman_darwin_arm64.tar.gz
+          test -f dist/checksums.txt

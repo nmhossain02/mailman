@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/nabeel/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/core"
 )
 
 // Backend is the presentation-layer boundary. Implementations own all policy,

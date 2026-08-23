@@ -7,17 +7,30 @@ until you review and apply a frozen plan.
 
 ## Get your inbox into Mailman
 
-The quickest path is: build Mailman, start Ollama, connect one email account,
+The quickest path is: install Mailman, start Ollama, connect one email account,
 sync, then open the TUI.
 
-### 1. Build Mailman and start a local model
+### 1. Install Mailman and start a local model
 
-You need Go 1.27+ and [Ollama](https://ollama.com/).
+On macOS or Linux, the installer downloads the matching release binary, verifies
+its SHA-256 checksum, and puts it in `$HOME/.local/bin`:
 
 ```sh
-git clone https://github.com/nmhossain02/mailman.git
-cd mailman
-go build -o mailman ./cmd/mailman
+curl -fsSLO https://raw.githubusercontent.com/nmhossain02/mailman/main/scripts/install.sh
+sh install.sh
+export PATH="$HOME/.local/bin:$PATH"
+mailman version
+```
+
+If you already have Go 1.27+, you can instead use Go's versioned installer:
+
+```sh
+go install github.com/nmhossain02/mailman/cmd/mailman@latest
+```
+
+Install [Ollama](https://ollama.com/) and download the default local model:
+
+```sh
 ollama pull qwen3:8b
 ```
 
@@ -30,10 +43,6 @@ Choose a predictable data directory for the first run:
 export MAILMAN_DATA_DIR="$HOME/.mailman"
 mkdir -p "$MAILMAN_DATA_DIR"
 ```
-
-On Windows PowerShell, build with `go build -o mailman.exe ./cmd/mailman`, set
-`$env:MAILMAN_DATA_DIR="$HOME\.mailman"`, and use `.\mailman.exe` in the commands
-below.
 
 Mailman stores its SQLite database and configuration there. OAuth tokens remain
 in your operating system's credential store, never in this directory.
@@ -73,9 +82,9 @@ Create `$MAILMAN_DATA_DIR/config.json`:
 Authorize in the browser, verify the connection, and download your mailbox:
 
 ```sh
-./mailman auth personal
-./mailman doctor
-./mailman sync
+mailman auth personal
+mailman doctor
+mailman sync
 ```
 
 Google may show an unverified-app warning for your own Testing-mode project.
@@ -121,9 +130,9 @@ Use this config instead:
 Then run:
 
 ```sh
-./mailman auth work
-./mailman doctor
-./mailman sync
+mailman auth work
+mailman doctor
+mailman sync
 ```
 
 Outlook requests identity/offline access, `Mail.ReadWrite`, and
@@ -134,7 +143,7 @@ Outlook requests identity/offline access, `Mail.ReadWrite`, and
 Open the TUI:
 
 ```sh
-./mailman
+mailman
 ```
 
 The main keys are:
@@ -167,7 +176,7 @@ changed since the preview.
 You can also compile a request without entering the TUI:
 
 ```sh
-./mailman find old newsletters and archive them
+mailman find old newsletters and archive them
 ```
 
 This prints the canonical command for inspection; it does not apply it.
@@ -193,8 +202,8 @@ the integrations to the Gmail account:
 Reauthorize so the new scopes are granted:
 
 ```sh
-./mailman auth personal
-./mailman doctor
+mailman auth personal
+mailman doctor
 ```
 
 Task and event creation remains a high-risk reviewed operation. Mailman does not
@@ -206,8 +215,8 @@ Run sync again whenever you want to fetch new mail. Mailman resumes from the
 provider checkpoint rather than downloading the whole mailbox again:
 
 ```sh
-./mailman doctor
-./mailman sync --json
+mailman doctor
+mailman sync --json
 ```
 
 The application also contains a one-shot schedule runner for saved schedules.
@@ -220,7 +229,7 @@ logged-in user so the OS credential store is available and unlocked.
 Start with:
 
 ```sh
-./mailman doctor
+mailman doctor
 ```
 
 It checks the database, OS keyring, Ollama, provider refresh/profile access, and
@@ -252,8 +261,8 @@ the External model in `config.json`, and place the benchmark dataset at
 `$MAILMAN_DATA_DIR/eval.jsonl`.
 
 ```sh
-./mailman eval run --json
-./mailman eval run --allow-external --max-external-calls 20
+mailman eval run --json
+mailman eval run --allow-external --max-external-calls 20
 ```
 
 External execution requires both the allow flag and a positive visible cap.

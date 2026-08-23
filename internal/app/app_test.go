@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nabeel/mailman/internal/core"
-	"github.com/nabeel/mailman/internal/inference"
-	"github.com/nabeel/mailman/internal/policy"
-	"github.com/nabeel/mailman/internal/provider"
-	"github.com/nabeel/mailman/internal/store"
+	"github.com/nmhossain02/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/inference"
+	"github.com/nmhossain02/mailman/internal/policy"
+	"github.com/nmhossain02/mailman/internal/provider"
+	"github.com/nmhossain02/mailman/internal/store"
 )
 
 func testDB(t *testing.T) *store.DB {

@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nabeel/mailman/internal/core"
-	"github.com/nabeel/mailman/internal/provider"
+	"github.com/nmhossain02/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/provider"
 )
 
 var ErrCursorExpired = errors.New("gmail history cursor expired")

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/nabeel/mailman/internal/provider"
+	"github.com/nmhossain02/mailman/internal/provider"
 )
 
 func testClient(server *httptest.Server) *Client {

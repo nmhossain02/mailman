@@ -1,7 +1,7 @@
 package policy
 
 import (
-	"github.com/nabeel/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/core"
 	"testing"
 	"time"
 )

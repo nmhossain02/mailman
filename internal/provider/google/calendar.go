@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nabeel/mailman/internal/provider"
+	"github.com/nmhossain02/mailman/internal/provider"
 )
 
 type Calendar struct {

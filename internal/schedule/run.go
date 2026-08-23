@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/nabeel/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/core"
 )
 
 var ErrNotFound = errors.New("schedule not found")

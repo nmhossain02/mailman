@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/nabeel/mailman/internal/inference"
-	"github.com/nabeel/mailman/internal/provider"
-	"github.com/nabeel/mailman/internal/secret"
+	"github.com/nmhossain02/mailman/internal/inference"
+	"github.com/nmhossain02/mailman/internal/provider"
+	"github.com/nmhossain02/mailman/internal/secret"
 )
 
 type Check struct{ Name, Status, Message string }

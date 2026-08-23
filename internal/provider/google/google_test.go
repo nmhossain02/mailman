@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nabeel/mailman/internal/core"
-	"github.com/nabeel/mailman/internal/provider"
-	"github.com/nabeel/mailman/internal/secret"
+	"github.com/nmhossain02/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/provider"
+	"github.com/nmhossain02/mailman/internal/secret"
 )
 
 func fixture(t *testing.T, name string) []byte {

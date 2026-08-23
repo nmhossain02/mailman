@@ -47,6 +47,8 @@ func Parse(args []string) (Request, error) {
 	switch args[0] {
 	case "auth":
 		return parseNamed("auth", args[1:])
+	case "version":
+		return parseNoArgs("version", args[1:])
 	case "sync":
 		return parseSync(args[1:])
 	case "doctor":

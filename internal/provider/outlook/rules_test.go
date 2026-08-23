@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/nabeel/mailman/internal/core"
-	"github.com/nabeel/mailman/internal/provider"
+	"github.com/nmhossain02/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/provider"
 )
 
 func TestCompileRulePartialForUnsupportedAction(t *testing.T) {

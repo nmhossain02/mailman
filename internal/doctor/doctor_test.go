@@ -3,8 +3,8 @@ package doctor
 import (
 	"context"
 	"errors"
-	"github.com/nabeel/mailman/internal/inference"
-	"github.com/nabeel/mailman/internal/secret"
+	"github.com/nmhossain02/mailman/internal/inference"
+	"github.com/nmhossain02/mailman/internal/secret"
 	"testing"
 )
 

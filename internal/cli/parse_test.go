@@ -15,6 +15,7 @@ func TestParseModes(t *testing.T) {
 	}{
 		{name: "no args opens TUI", mode: ModeTUI},
 		{name: "exact sync", args: []string{"sync", "--json"}, mode: ModeExact, command: "sync"},
+		{name: "exact version", args: []string{"version"}, mode: ModeExact, command: "version"},
 		{name: "exact schedule", args: []string{"schedule", "run", "morning"}, mode: ModeExact, command: "schedule run"},
 		{name: "natural text", args: []string{"find", "old", "newsletters"}, mode: ModeNatural, text: "find old newsletters"},
 	}

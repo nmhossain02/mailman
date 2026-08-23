@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nabeel/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/core"
 )
 
 func TestRelativeDateFixtures(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nabeel/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/core"
 )
 
 type Translator struct {

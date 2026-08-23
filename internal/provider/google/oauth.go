@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nabeel/mailman/internal/secret"
+	"github.com/nmhossain02/mailman/internal/secret"
 )
 
 const (

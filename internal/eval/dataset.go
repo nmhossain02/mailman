@@ -11,7 +11,7 @@ import (
 	"io"
 	"sort"
 
-	"github.com/nabeel/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/core"
 )
 
 // DatasetRecord is one portable JSONL case. InputReference is descriptive only;

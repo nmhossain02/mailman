@@ -1,4 +1,4 @@
-module github.com/nabeel/mailman
+module github.com/nmhossain02/mailman
 
 go 1.27.0
 

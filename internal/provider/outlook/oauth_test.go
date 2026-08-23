@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nabeel/mailman/internal/secret"
+	"github.com/nmhossain02/mailman/internal/secret"
 	"golang.org/x/oauth2"
 )
 

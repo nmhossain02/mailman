@@ -6,9 +6,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/nabeel/mailman/internal/core"
-	"github.com/nabeel/mailman/internal/policy"
-	"github.com/nabeel/mailman/internal/provider"
+	"github.com/nmhossain02/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/policy"
+	"github.com/nmhossain02/mailman/internal/provider"
 )
 
 type PreparationRepository interface {

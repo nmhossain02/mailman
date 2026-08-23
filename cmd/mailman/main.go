@@ -12,28 +12,35 @@ import (
 	"os/exec"
 	"path/filepath"
 	stdruntime "runtime"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/nabeel/mailman/internal/app"
-	"github.com/nabeel/mailman/internal/cli"
-	"github.com/nabeel/mailman/internal/config"
-	"github.com/nabeel/mailman/internal/core"
-	"github.com/nabeel/mailman/internal/doctor"
-	evalpkg "github.com/nabeel/mailman/internal/eval"
-	"github.com/nabeel/mailman/internal/inference"
-	"github.com/nabeel/mailman/internal/inference/ollama"
-	openaiadapter "github.com/nabeel/mailman/internal/inference/openai"
-	"github.com/nabeel/mailman/internal/policy"
-	"github.com/nabeel/mailman/internal/provider"
-	"github.com/nabeel/mailman/internal/provider/google"
-	"github.com/nabeel/mailman/internal/provider/outlook"
-	"github.com/nabeel/mailman/internal/schedule"
-	"github.com/nabeel/mailman/internal/secret"
-	"github.com/nabeel/mailman/internal/store"
-	"github.com/nabeel/mailman/internal/ui"
+	"github.com/nmhossain02/mailman/internal/app"
+	"github.com/nmhossain02/mailman/internal/cli"
+	"github.com/nmhossain02/mailman/internal/config"
+	"github.com/nmhossain02/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/doctor"
+	evalpkg "github.com/nmhossain02/mailman/internal/eval"
+	"github.com/nmhossain02/mailman/internal/inference"
+	"github.com/nmhossain02/mailman/internal/inference/ollama"
+	openaiadapter "github.com/nmhossain02/mailman/internal/inference/openai"
+	"github.com/nmhossain02/mailman/internal/policy"
+	"github.com/nmhossain02/mailman/internal/provider"
+	"github.com/nmhossain02/mailman/internal/provider/google"
+	"github.com/nmhossain02/mailman/internal/provider/outlook"
+	"github.com/nmhossain02/mailman/internal/schedule"
+	"github.com/nmhossain02/mailman/internal/secret"
+	"github.com/nmhossain02/mailman/internal/store"
+	"github.com/nmhossain02/mailman/internal/ui"
+)
+
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildDate = "unknown"
 )
 
 func main() {
@@ -59,6 +66,14 @@ func run(ctx context.Context, args []string) error {
 	req, err := cli.Parse(args)
 	if err != nil {
 		return err
+	}
+	if req.Mode == cli.ModeExact && req.Command == "version" {
+		info := versionInfo()
+		if req.JSON {
+			return json.NewEncoder(os.Stdout).Encode(info)
+		}
+		fmt.Fprintf(os.Stdout, "mailman %s (%s, %s)\n", info.Version, info.Commit, info.Date)
+		return nil
 	}
 	dataDir, err := core.DefaultDataDir()
 	if err != nil {
@@ -206,6 +221,18 @@ func runExact(ctx context.Context, rt *runtime, b *backend, req cli.Request, dat
 	default:
 		return fmt.Errorf("unsupported exact command %q", req.Command)
 	}
+}
+
+type buildInfo struct{ Version, Commit, Date string }
+
+func versionInfo() buildInfo {
+	v := version
+	if v == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+			v = info.Main.Version
+		}
+	}
+	return buildInfo{Version: v, Commit: commit, Date: buildDate}
 }
 
 func authorize(ctx context.Context, rt *runtime, name string) error {

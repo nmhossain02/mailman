@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/nabeel/mailman/internal/inference"
+	"github.com/nmhossain02/mailman/internal/inference"
 )
 
 func TestInferExactRequestAndResult(t *testing.T) {
