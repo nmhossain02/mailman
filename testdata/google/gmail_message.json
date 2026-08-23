@@ -1,0 +1,1 @@
+{"id":"m1","threadId":"t1","historyId":"11","internalDate":"1704067200000","labelIds":["INBOX","UNREAD"],"payload":{"mimeType":"multipart/alternative","headers":[{"name":"Subject","value":"Status"},{"name":"From","value":"sender@example.com"},{"name":"To","value":"me@example.com"},{"name":"Message-ID","value":"<m1@example.com>"}]}}

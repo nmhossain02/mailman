@@ -1,0 +1,1 @@
+{"filter":[{"id":"existing","criteria":{"from":"news@example.com"},"action":{"removeLabelIds":["INBOX"]}}]}
