@@ -1,0 +1,7 @@
+{
+  "value": [
+    {"id": "stable", "@removed": {"reason": "changed"}},
+    {"id": "stable", "conversationId": "c", "parentFolderId": "archive", "categories": ["Blue"]}
+  ],
+  "@odata.deltaLink": "BASE_URL/delta"
+}

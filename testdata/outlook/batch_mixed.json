@@ -1,0 +1,6 @@
+{
+  "responses": [
+    {"id": "one", "status": 400, "body": {"error": "bad"}},
+    {"id": "two", "status": 429, "headers": {"Retry-After": "0"}, "body": {}}
+  ]
+}
