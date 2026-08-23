@@ -151,3 +151,42 @@ func TestDomainRecordsRoundTrip(t *testing.T) {
 		t.Fatalf("schedules=%+v err=%v", schedules, err)
 	}
 }
+
+func TestSyncRepositoryMethods(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	now := time.Now().UTC()
+	if _, ok, err := db.Cursor(ctx, "a", "inbox"); err != nil || ok {
+		t.Fatalf("empty cursor ok=%v err=%v", ok, err)
+	}
+	if err := db.PromoteCursor(ctx, "a", "inbox", "next", now); err != nil {
+		t.Fatal(err)
+	}
+	if cursor, ok, err := db.Cursor(ctx, "a", "inbox"); err != nil || !ok || cursor != "next" {
+		t.Fatalf("cursor=%q ok=%v err=%v", cursor, ok, err)
+	}
+	if err := db.UpsertConversation(ctx, core.Conversation{ID: "c", AccountID: "a", ProviderKey: "provider-c", Subject: "subject", LastMessageAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertMessage(ctx, fixtureMessage("m", "body", now)); err != nil {
+		t.Fatal(err)
+	}
+	if m, err := db.Message(ctx, "m"); err != nil || m.ConversationID != "c" {
+		t.Fatalf("message=%+v err=%v", m, err)
+	}
+	if c, err := db.Conversation(ctx, "c"); err != nil || len(c.MessageIDs) != 1 {
+		t.Fatalf("conversation=%+v err=%v", c, err)
+	}
+	claim := core.Claim{ID: "claim", TargetType: "message", TargetID: "m", Name: "stale", Value: json.RawMessage(`true`), Evidence: json.RawMessage(`[]`), CreatedAt: now}
+	if err := db.UpsertClaim(ctx, claim); err != nil {
+		t.Fatal(err)
+	}
+	rules := []core.Rule{{ID: "native", AccountID: "a", Source: "provider", ProviderID: "remote", Name: "native", Enabled: true, RawProvider: json.RawMessage(`{}`)}}
+	if err := db.ReplaceProviderRules(ctx, "a", "provider", rules); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.Rules(ctx)
+	if err != nil || len(got) != 1 || got[0].ID != "native" {
+		t.Fatalf("rules=%+v err=%v", got, err)
+	}
+}

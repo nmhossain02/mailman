@@ -106,6 +106,21 @@ func (s *DB) UpsertConversation(ctx context.Context, c core.Conversation) error 
 	return err
 }
 
+func (s *DB) Cursor(ctx context.Context, accountID, scope string) (string, bool, error) {
+	var checkpoint string
+	err := s.sql.QueryRowContext(ctx, `SELECT checkpoint FROM cursors WHERE account_id=? AND scope=?`, accountID, scope).Scan(&checkpoint)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	return checkpoint, err == nil, err
+}
+
+// PromoteCursor is called only after every page in a provider sync commits.
+func (s *DB) PromoteCursor(ctx context.Context, accountID, scope, checkpoint string, now time.Time) error {
+	_, err := s.sql.ExecContext(ctx, `INSERT INTO cursors(account_id,scope,checkpoint,updated_at) VALUES(?,?,?,?) ON CONFLICT(account_id,scope) DO UPDATE SET checkpoint=excluded.checkpoint,updated_at=excluded.updated_at`, accountID, scope, checkpoint, now.UTC().Format(time.RFC3339Nano))
+	return err
+}
+
 func (s *DB) UpsertMessage(ctx context.Context, m core.Message) error {
 	recipients, err := json.Marshal(m.Recipients)
 	if err != nil {
@@ -186,6 +201,70 @@ func scanMessage(row scanner) (core.Message, error) {
 	}
 	m.ReceivedAt, err = time.Parse(time.RFC3339Nano, received)
 	return m, err
+}
+
+func (s *DB) Message(ctx context.Context, id string) (core.Message, error) {
+	return scanMessage(s.sql.QueryRowContext(ctx, `SELECT id,account_id,provider_id,conversation_id,revision,internet_message_id,subject,sender,normalized_body,recipients_json,received_at,is_read,folder_id,tag_ids_json FROM messages WHERE id=?`, id))
+}
+
+func (s *DB) Conversation(ctx context.Context, id string) (core.Conversation, error) {
+	var c core.Conversation
+	var last string
+	err := s.sql.QueryRowContext(ctx, `SELECT id,account_id,provider_key,subject,last_message_at FROM conversations WHERE id=?`, id).Scan(&c.ID, &c.AccountID, &c.ProviderKey, &c.Subject, &last)
+	if err != nil {
+		return c, err
+	}
+	c.LastMessageAt, err = time.Parse(time.RFC3339Nano, last)
+	if err != nil {
+		return c, err
+	}
+	rows, err := s.ConversationMessages(ctx, id)
+	if err != nil {
+		return c, err
+	}
+	for _, m := range rows {
+		c.MessageIDs = append(c.MessageIDs, m.ID)
+	}
+	return c, nil
+}
+
+func (s *DB) Conversations(ctx context.Context, accountID string) ([]core.Conversation, error) {
+	rows, err := s.sql.QueryContext(ctx, `SELECT id,account_id,provider_key,subject,last_message_at FROM conversations WHERE (?='' OR account_id=?) ORDER BY last_message_at DESC,id`, accountID, accountID)
+	if err != nil {
+		return nil, err
+	}
+	var out []core.Conversation
+	for rows.Next() {
+		var c core.Conversation
+		var last string
+		if err = rows.Scan(&c.ID, &c.AccountID, &c.ProviderKey, &c.Subject, &last); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		c.LastMessageAt, err = time.Parse(time.RFC3339Nano, last)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		messages, e := s.ConversationMessages(ctx, out[i].ID)
+		if e != nil {
+			return nil, e
+		}
+		for _, m := range messages {
+			out[i].MessageIDs = append(out[i].MessageIDs, m.ID)
+		}
+	}
+	return out, nil
 }
 
 func (s *DB) ConversationMessages(ctx context.Context, conversationID string) ([]core.Message, error) {

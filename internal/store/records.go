@@ -28,6 +28,40 @@ func (s *DB) SaveRule(ctx context.Context, r core.Rule) error {
 	return err
 }
 
+func (s *DB) ReplaceProviderRules(ctx context.Context, accountID, source string, rules []core.Rule) error {
+	tx, err := s.sql.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `DELETE FROM rules WHERE account_id=? AND source=?`, accountID, source); err != nil {
+		return err
+	}
+	for _, r := range rules {
+		conditions, e := marshal(r.Conditions)
+		if e != nil {
+			return e
+		}
+		exceptions, e := marshal(r.Exceptions)
+		if e != nil {
+			return e
+		}
+		actions, e := marshal(r.Actions)
+		if e != nil {
+			return e
+		}
+		if _, e = tx.ExecContext(ctx, `INSERT INTO rules(id,account_id,source,provider_id,name,enabled,read_only,sequence,conditions_json,exceptions_json,actions_json,raw_provider,canonical_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, r.ID, r.AccountID, r.Source, r.ProviderID, r.Name, r.Enabled, r.ReadOnly, r.Sequence, conditions, exceptions, actions, r.RawProvider, r.CanonicalHash); e != nil {
+			return e
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *DB) UpsertClaim(ctx context.Context, v core.Claim) error {
+	_, err := s.sql.ExecContext(ctx, `INSERT INTO claims(id,target_type,target_id,name,value_json,basis,evidence_json,confidence,derivation_version,created_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET target_type=excluded.target_type,target_id=excluded.target_id,name=excluded.name,value_json=excluded.value_json,basis=excluded.basis,evidence_json=excluded.evidence_json,confidence=excluded.confidence,derivation_version=excluded.derivation_version,created_at=excluded.created_at`, v.ID, v.TargetType, v.TargetID, v.Name, v.Value, v.Basis, v.Evidence, v.Confidence, v.DerivationVersion, v.CreatedAt.UTC().Format(time.RFC3339Nano))
+	return err
+}
+
 func (s *DB) Rules(ctx context.Context) ([]core.Rule, error) {
 	rows, err := s.sql.QueryContext(ctx, `SELECT id,account_id,source,provider_id,name,enabled,read_only,sequence,conditions_json,exceptions_json,actions_json,raw_provider,canonical_hash FROM rules ORDER BY account_id,name,id`)
 	if err != nil {
