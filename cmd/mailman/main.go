@@ -227,12 +227,26 @@ type buildInfo struct{ Version, Commit, Date string }
 
 func versionInfo() buildInfo {
 	v := version
-	if v == "dev" {
-		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+	c := commit
+	d := buildDate
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if v == "dev" && info.Main.Version != "" && info.Main.Version != "(devel)" {
 			v = info.Main.Version
 		}
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				if c == "unknown" {
+					c = setting.Value
+				}
+			case "vcs.time":
+				if d == "unknown" {
+					d = setting.Value
+				}
+			}
+		}
 	}
-	return buildInfo{Version: v, Commit: commit, Date: buildDate}
+	return buildInfo{Version: v, Commit: c, Date: d}
 }
 
 func authorize(ctx context.Context, rt *runtime, name string) error {
