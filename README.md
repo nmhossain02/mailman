@@ -1,59 +1,62 @@
 # Mailman
 
-Mailman is a local-first email management system for bulk inbox cleanup. It
-syncs Gmail or Outlook into a portable SQLite database, interprets plain-English
-requests with a local Ollama model, prepares reviewable plans, and only changes
-remote state after explicit approval. Scheduled runs prepare rolling drafts;
-they cannot apply them.
+Mailman helps you clean up a large Gmail or Outlook inbox from a local,
+review-first TUI. Email is indexed in a local SQLite database, natural-language
+requests run through Ollama by default, and nothing changes in your mailbox
+until you review and apply a frozen plan.
 
-The implementation is intentionally small: one Go binary, one SQLite file, OS
-keyring secrets, raw provider REST clients, a Bubble Tea TUI, and optional
-OpenAI Responses calls for explicitly capped fallbacks or evaluation probes.
+## Get your inbox into Mailman
 
-## Build and run
+The quickest path is: build Mailman, start Ollama, connect one email account,
+sync, then open the TUI.
 
-Go 1.27 or newer is required.
+### 1. Build Mailman and start a local model
+
+You need Go 1.27+ and [Ollama](https://ollama.com/).
 
 ```sh
+git clone https://github.com/nmhossain02/mailman.git
+cd mailman
 go build -o mailman ./cmd/mailman
-./mailman doctor
-./mailman
+ollama pull qwen3:8b
 ```
 
-With no arguments Mailman opens the TUI. Press `/` for the natural-command
-palette. The palette always shows the compiled command and plan scope before a
-reviewer selects operations, freezes the plan, and applies it.
+Ollama normally starts when its desktop application opens. If needed, start it
+from a terminal with `ollama serve`.
 
-The data directory is the platform user-config directory under `mailman`. Set
-`MAILMAN_DATA_DIR` to move the database and config together. Tokens and API keys
-never enter this directory; they remain in the logged-in user's OS keyring.
+Choose a predictable data directory for the first run:
 
-## Configuration
+```sh
+export MAILMAN_DATA_DIR="$HOME/.mailman"
+mkdir -p "$MAILMAN_DATA_DIR"
+```
 
-Create `$MAILMAN_DATA_DIR/config.json` (or use the platform default directory):
+On Windows PowerShell, build with `go build -o mailman.exe ./cmd/mailman`, set
+`$env:MAILMAN_DATA_DIR="$HOME\.mailman"`, and use `.\mailman.exe` in the commands
+below.
+
+Mailman stores its SQLite database and configuration there. OAuth tokens remain
+in your operating system's credential store, never in this directory.
+
+### 2. Connect Gmail
+
+In Google Cloud:
+
+1. Create or select a project.
+2. Enable the Gmail API.
+3. Configure the OAuth consent screen and add yourself as a test user if the
+   application is in Testing mode.
+4. Create an OAuth client with application type **Desktop app**.
+
+Create `$MAILMAN_DATA_DIR/config.json`:
 
 ```json
 {
   "Core": {
-    "Google": {"ClientID": "...", "ClientSecret": "..."},
-    "Microsoft": {"ClientID": "...", "Tenant": "common"},
-    "Local": {
-      "Backend": "ollama",
-      "BaseURL": "http://127.0.0.1:11434",
-      "Model": "qwen3:8b",
-      "Enabled": true,
-      "HealthTimeoutSeconds": 2,
-      "InteractiveTimeoutSeconds": 30,
-      "BackgroundTimeoutSeconds": 120
-    },
-    "External": {
-      "Backend": "openai",
-      "BaseURL": "https://api.openai.com",
-      "Model": "gpt-5-mini",
-      "Enabled": false,
-      "ExternalTimeoutSeconds": 90
-    },
-    "Routing": {"Mode": "local_only", "Privacy": "local_only"}
+    "Google": {
+      "ClientID": "YOUR_GOOGLE_CLIENT_ID",
+      "ClientSecret": "YOUR_GOOGLE_CLIENT_SECRET"
+    }
   },
   "Accounts": [
     {
@@ -61,11 +64,48 @@ Create `$MAILMAN_DATA_DIR/config.json` (or use the platform default directory):
       "Name": "Personal Gmail",
       "Provider": "gmail",
       "TokenKey": "google.personal",
-      "Enabled": true,
-      "Integrations": ["google_tasks", "google_calendar"],
-      "TaskListID": "@default",
-      "CalendarID": "primary"
-    },
+      "Enabled": true
+    }
+  ]
+}
+```
+
+Authorize in the browser, verify the connection, and download your mailbox:
+
+```sh
+./mailman auth personal
+./mailman doctor
+./mailman sync
+```
+
+Google may show an unverified-app warning for your own Testing-mode project.
+Testing-mode external projects can also issue short-lived refresh tokens.
+Mailman requests only `gmail.modify` and `gmail.settings.basic`; it cannot send
+mail and does not request broad `mail.google.com` access.
+
+Skip to [Use the inbox](#use-the-inbox) once sync completes.
+
+### 2b. Connect Outlook instead
+
+In Microsoft Entra:
+
+1. Register an application that supports organizational and personal Microsoft
+   accounts.
+2. Enable public-client/desktop flows.
+3. Add `http://127.0.0.1:53682/oauth/callback` as a redirect URI.
+4. Do not create a client secret.
+
+Use this config instead:
+
+```json
+{
+  "Core": {
+    "Microsoft": {
+      "ClientID": "YOUR_MICROSOFT_CLIENT_ID",
+      "Tenant": "common"
+    }
+  },
+  "Accounts": [
     {
       "ID": "work",
       "Name": "Work Outlook",
@@ -78,77 +118,163 @@ Create `$MAILMAN_DATA_DIR/config.json` (or use the platform default directory):
 }
 ```
 
-Unknown fields and unsafe routing combinations fail at startup.
-
-For Google, enable the Gmail, Calendar, and Tasks APIs; configure a consent
-screen and test users; then create a Desktop OAuth client. Projects left in
-Google's external “Testing” state may receive short-lived refresh tokens. For
-Microsoft, register a public desktop client supporting organizational and
-personal accounts, add the configured loopback redirect, and do not create a
-client secret.
-
-Authorize and sync:
+Then run:
 
 ```sh
-mailman auth personal
-mailman auth work
-mailman doctor
-mailman sync
+./mailman auth work
+./mailman doctor
+./mailman sync
 ```
 
-Google requests only the scopes implied by enabled integrations:
-`gmail.modify`, `gmail.settings.basic`, `calendar.events`,
-`calendar.calendarlist.readonly`, and `tasks`. It never requests send or broad
-mail access. Outlook requests `Mail.ReadWrite` and
-`MailboxSettings.ReadWrite`, plus identity/offline scopes.
+Outlook requests identity/offline access, `Mail.ReadWrite`, and
+`MailboxSettings.ReadWrite`. Mailman does not request permission to send mail.
 
-To enable explicit external evals, store the OpenAI key under
-`openai.api_key` in the `mailman` OS-keyring service and enable External in the
-config. There is deliberately no plaintext or environment fallback in normal
-application execution.
+## Use the inbox
 
-## Human and automation workflows
-
-Natural text after the binary is compiled locally and printed for review:
+Open the TUI:
 
 ```sh
-mailman find newsletters older than 90 days and archive them
-mailman show alerts from last month
+./mailman
 ```
 
-Exact commands stay narrow:
+The main keys are:
+
+- `1`–`4`: conversations, rules, schedules, and plans
+- `j`/`k` or arrow keys: move
+- `Enter`: open a conversation
+- `/`: open the natural-command palette
+- `q`: quit
+
+Try a command such as:
+
+```text
+Find newsletters older than 90 days and archive them
+```
+
+The review flow is deliberately explicit:
+
+1. Type the request and press `Enter`.
+2. Inspect the compiled filters and actions.
+3. Press `p` to preview the target count and operation groups.
+4. Use `Space` to exclude or restore individual operations.
+5. Press `f` to persist your selections and freeze the plan.
+6. Press `a` to apply the frozen plan.
+
+Until the last step, Mailman only reads email and writes local draft state.
+Revision checks prevent a stale plan from silently changing a message that has
+changed since the preview.
+
+You can also compile a request without entering the TUI:
 
 ```sh
-mailman sync --json
-mailman schedule run inbox-maintenance
-mailman doctor --json
-mailman eval run --json
-mailman eval run --allow-external --max-external-calls 20
+./mailman find old newsletters and archive them
 ```
 
-An eval run reads `$MAILMAN_DATA_DIR/eval.jsonl`. External execution requires
-both the allow flag and a positive visible cap. Probe output never replaces the
-local production decision.
+This prints the canonical command for inspection; it does not apply it.
 
-Use the host scheduler (cron, launchd, or Task Scheduler) to invoke `mailman
-schedule run <name>`. Run it as the logged-in user while their credential store
-is unlocked. Each invocation is one-shot: incremental sync, local processing,
-rolling draft preparation, then exit—no daemon and no background mutation.
+## Add Google Tasks and Calendar
 
-## Safety and provider differences
+Enable the Google Tasks and Calendar APIs in the same Google project, then add
+the integrations to the Gmail account:
 
-- Mail actions are desired-state and revision-checked. Trash is recoverable;
-  permanent deletion, sending, forwarding, and attendee invitations are absent.
-- Gmail uses provider `threadId`; Outlook uses `conversationId`. There is no
-  guessed cross-provider thread clustering.
-- Gmail filters support create/delete rather than update/disable/order. Existing
-  provider rules are imported so local decisions remain aware of them.
-- Outlook categories remain separate from folders and unrelated categories are
-  preserved during changes.
-- Lost responses from non-idempotent creates are recorded as `uncertain` and
-  reconciled rather than blindly retried.
+```json
+{
+  "ID": "personal",
+  "Name": "Personal Gmail",
+  "Provider": "gmail",
+  "TokenKey": "google.personal",
+  "Enabled": true,
+  "Integrations": ["google_tasks", "google_calendar"],
+  "TaskListID": "@default",
+  "CalendarID": "primary"
+}
+```
 
-## Tests and optional smoke checks
+Reauthorize so the new scopes are granted:
+
+```sh
+./mailman auth personal
+./mailman doctor
+```
+
+Task and event creation remains a high-risk reviewed operation. Mailman does not
+invite calendar attendees in v1.
+
+## Keep the inbox updated
+
+Run sync again whenever you want to fetch new mail. Mailman resumes from the
+provider checkpoint rather than downloading the whole mailbox again:
+
+```sh
+./mailman doctor
+./mailman sync --json
+```
+
+The application also contains a one-shot schedule runner for saved schedules.
+It performs incremental sync and local processing, updates a rolling draft, and
+exits without applying mailbox changes. Run scheduled invocations as the
+logged-in user so the OS credential store is available and unlocked.
+
+## Troubleshooting
+
+Start with:
+
+```sh
+./mailman doctor
+```
+
+It checks the database, OS keyring, Ollama, provider refresh/profile access, and
+separately enabled Tasks and Calendar integrations.
+
+Common failures:
+
+- **Ollama unavailable:** open Ollama or run `ollama serve`, then confirm
+  `ollama list` contains `qwen3:8b`.
+- **Keyring unavailable:** run Mailman in the logged-in desktop session, not as
+  another user or from a locked headless session.
+- **OAuth redirect error:** make the configured Outlook redirect URI exactly
+  match the Entra registration. Google must use a Desktop OAuth client.
+- **No enabled mail accounts:** check the account's `Enabled`, `Provider`, and
+  `TokenKey` values, then run `auth` again.
+- **Google refresh expires repeatedly:** publish the OAuth app or move it out of
+  external Testing mode when appropriate.
+
+Set `MAILMAN_DATA_DIR` in every terminal or scheduler invocation. Without it,
+Mailman uses the operating system's user-config directory under `mailman`.
+
+## Optional external evaluation
+
+Normal inbox processing is local-only. OpenAI is optional and is used only for
+an explicitly allowed fallback or benchmark probe.
+
+Store the API key as `openai.api_key` in the `mailman` OS-keyring service, enable
+the External model in `config.json`, and place the benchmark dataset at
+`$MAILMAN_DATA_DIR/eval.jsonl`.
+
+```sh
+./mailman eval run --json
+./mailman eval run --allow-external --max-external-calls 20
+```
+
+External execution requires both the allow flag and a positive visible cap.
+Probe output never replaces the local production decision.
+
+## Safety boundaries
+
+- Plans are desired-state, revision-checked, and explicitly reviewed.
+- Trash is recoverable. Permanent deletion, sending, forwarding, and attendee
+  invitations are not implemented.
+- Gmail uses provider `threadId`; Outlook uses `conversationId`. Mailman does not
+  guess cross-provider threads.
+- Existing native provider rules are imported and visible alongside local rules.
+- Lost responses from non-idempotent remote creates are recorded as `uncertain`
+  and reconciled instead of blindly retried.
+- Outlook folders and categories stay distinct, and unrelated categories are
+  preserved.
+
+## Development and architecture
+
+Run the offline test suite:
 
 ```sh
 go test ./...
@@ -156,24 +282,11 @@ go vet ./...
 go test -race ./...
 ```
 
-Default tests are offline and use temporary databases and `httptest` fixtures.
-Live checks are separately gated so enabling one provider cannot accidentally
-enable paid or mutating checks for another:
+Live smoke tests are separately gated by provider so paid or mutating checks are
+never enabled by one global switch. See `integration/live_smoke_test.go` for the
+required environment variables.
 
-- `MAILMAN_SMOKE_GMAIL=1` and `MAILMAN_SMOKE_GMAIL_TOKEN`
-- `MAILMAN_SMOKE_OUTLOOK=1` and `MAILMAN_SMOKE_OUTLOOK_TOKEN`
-- `MAILMAN_SMOKE_TASKS=1` and `MAILMAN_SMOKE_TASKS_TOKEN`
-- `MAILMAN_SMOKE_CALENDAR=1` and `MAILMAN_SMOKE_CALENDAR_TOKEN`
-- `MAILMAN_SMOKE_OLLAMA=1` and `MAILMAN_SMOKE_OLLAMA_MODEL`
-- `MAILMAN_SMOKE_OPENAI=1`, `OPENAI_API_KEY`, and
-  `MAILMAN_SMOKE_OPENAI_MODEL` (incurs cost)
-
-The checked-in live provider smoke tests are read-only. Fixture suites exercise
-safe label/category, move, rule, task, and event mutation/reconciliation paths.
-
-## Architecture
-
-The central record flow is:
+The processing path is:
 
 ```text
 provider page -> atomic SQLite page/checkpoint -> conversations
@@ -181,8 +294,9 @@ provider page -> atomic SQLite page/checkpoint -> conversations
 -> policy precedence -> draft plan -> human decisions -> frozen plan -> apply
 ```
 
-Every model primitive has a versioned prompt/schema and a persisted trace. Eval
-cases use immutable input JSON and hashes, and reports keep local/external
-quality, latency, tokens, and optional frozen costs separately attributable.
-See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for domain contracts,
-provider semantics, and task ownership.
+Every model primitive has a versioned schema and persisted trace. Eval cases use
+immutable input JSON and hashes; reports keep local and external quality,
+latency, tokens, and frozen costs separately attributable.
+
+See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the domain contracts and
+provider semantics.
