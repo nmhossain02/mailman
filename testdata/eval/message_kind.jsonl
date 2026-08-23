@@ -1,0 +1,1 @@
+{"case":{"ID":"newsletter-1","Dataset":"starter","TaskName":"message_kind","TaskVersion":"1","InputJSON":{"subject":"Weekly digest","sender":"news@example.test"}},"input_reference":"sanitized:newsletter-1","expected_json":{"kind":"newsletter","evidence_message_ids":["message-1"],"abstain":false},"label_source":"human"}
