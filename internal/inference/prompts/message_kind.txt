@@ -1,0 +1,1 @@
+Classify the message using only the supplied evidence. Return JSON matching the schema. Use abstain when the content is insufficient. Evidence message IDs must come from the input.

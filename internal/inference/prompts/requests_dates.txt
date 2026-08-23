@@ -1,0 +1,1 @@
+Extract explicit requests and dates using only supplied messages. Preserve evidence IDs and a short evidence quote. Do not invent dates. Return JSON matching the schema and abstain if evidence is insufficient.

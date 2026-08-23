@@ -1,0 +1,1 @@
+{"type":"object","additionalProperties":false,"properties":{"Kind":{"type":"string","enum":["personal","work","transaction","receipt","newsletter","notification","alert","other"]},"EvidenceMessageIDs":{"type":"array","items":{"type":"string"}},"Abstain":{"type":"boolean"}},"required":["Kind","EvidenceMessageIDs","Abstain"]}

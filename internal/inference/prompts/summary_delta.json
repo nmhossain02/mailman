@@ -1,0 +1,1 @@
+{"type":"object","additionalProperties":false,"properties":{"Summary":{"type":"string"},"OpenQuestions":{"type":"array","items":{"type":"string"}},"Commitments":{"type":"array","items":{"type":"string"}},"EvidenceMessageIDs":{"type":"array","items":{"type":"string"}},"Abstain":{"type":"boolean"}},"required":["Summary","OpenQuestions","Commitments","EvidenceMessageIDs","Abstain"]}

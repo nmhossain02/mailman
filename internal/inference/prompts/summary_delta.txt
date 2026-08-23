@@ -1,0 +1,1 @@
+Update the conversation summary from the supplied prior summary and new messages. Record open questions, commitments, and evidence IDs. Return JSON matching the schema; abstain if no supported update exists.
