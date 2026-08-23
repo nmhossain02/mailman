@@ -13,6 +13,7 @@ var (
 	filterFields   = set("kind", "age_days", "read", "starred", "sender", "sender_domain", "label", "folder", "awaiting", "has_deadline", "received_at", "subject", "body")
 	filterOps      = set("eq", "ne", "contains", "in", "lt", "lte", "gt", "gte")
 	actionKinds    = set("archive", "trash", "mark_read", "mark_unread", "add_label", "remove_label", "add_queue", "create_task", "create_event", "create_rule")
+	operationKinds = set("archive", "trash", "restore", "mark_read", "mark_unread", "add_label", "remove_label", "add_queue", "create_task", "create_event", "create_rule")
 	operationRisks = set("low", "medium", "high")
 	operationState = set("proposed", "approved", "running", "succeeded", "uncertain", "failed", "rejected")
 	planStates     = set("draft", "frozen", "running", "completed", "partial", "cancelled")
@@ -149,7 +150,7 @@ func (o Operation) Validate() error {
 			return err
 		}
 	}
-	if err := requireEnum("operation kind", o.Kind, actionKinds); err != nil {
+	if err := requireEnum("operation kind", o.Kind, operationKinds); err != nil {
 		return err
 	}
 	if err := requireEnum("operation risk", o.Risk, operationRisks); err != nil {

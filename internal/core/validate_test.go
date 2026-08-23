@@ -48,3 +48,14 @@ func TestDeleteActionIsNotPermanentDelete(t *testing.T) {
 		t.Fatal("Validate() accepted delete; v1 only permits recoverable trash")
 	}
 }
+
+func TestRestoreIsInternalOperationOnly(t *testing.T) {
+	t.Parallel()
+	if err := (Action{Kind: "restore"}).Validate(); err == nil {
+		t.Fatal("natural command action accepted internal restore")
+	}
+	op := Operation{ID: "undo", ExecutionKey: "undo-key", TargetType: "message", TargetID: "m", Kind: "restore", Risk: "low", Status: "proposed"}
+	if err := op.Validate(); err != nil {
+		t.Fatalf("undo operation rejected: %v", err)
+	}
+}
