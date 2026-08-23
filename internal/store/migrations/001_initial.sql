@@ -1,0 +1,18 @@
+CREATE TABLE accounts (id TEXT PRIMARY KEY, provider TEXT NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE cursors (account_id TEXT NOT NULL, scope TEXT NOT NULL, checkpoint TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(account_id, scope));
+CREATE TABLE conversations (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, provider_key TEXT NOT NULL, subject TEXT NOT NULL, last_message_at TEXT NOT NULL);
+CREATE TABLE messages (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, provider_id TEXT NOT NULL, conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, revision TEXT NOT NULL, internet_message_id TEXT NOT NULL, subject TEXT NOT NULL, sender TEXT NOT NULL, normalized_body TEXT NOT NULL, recipients_json BLOB NOT NULL, received_at TEXT NOT NULL, is_read INTEGER NOT NULL, folder_id TEXT NOT NULL, tag_ids_json BLOB NOT NULL);
+CREATE INDEX messages_conversation_time ON messages(conversation_id, received_at, id);
+CREATE VIRTUAL TABLE message_search USING fts5(message_id UNINDEXED, sender, subject, normalized_body);
+CREATE TABLE claims (id TEXT PRIMARY KEY, target_type TEXT NOT NULL, target_id TEXT NOT NULL, name TEXT NOT NULL, value_json BLOB NOT NULL, basis TEXT NOT NULL, evidence_json BLOB NOT NULL, confidence REAL, derivation_version TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE collections (id TEXT PRIMARY KEY, name TEXT NOT NULL, query_json BLOB NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE rules (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, source TEXT NOT NULL, provider_id TEXT NOT NULL, name TEXT NOT NULL, enabled INTEGER NOT NULL, read_only INTEGER NOT NULL, sequence INTEGER, conditions_json BLOB NOT NULL, exceptions_json BLOB NOT NULL, actions_json BLOB NOT NULL, raw_provider BLOB NOT NULL, canonical_hash TEXT NOT NULL);
+CREATE TABLE plans (id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE operations (id TEXT PRIMARY KEY, plan_id TEXT REFERENCES plans(id) ON DELETE CASCADE, execution_key TEXT NOT NULL UNIQUE, target_type TEXT NOT NULL, target_id TEXT NOT NULL, kind TEXT NOT NULL, risk TEXT NOT NULL, arguments_json BLOB NOT NULL, expected_revision TEXT NOT NULL, status TEXT NOT NULL);
+CREATE TABLE operation_journal (execution_key TEXT PRIMARY KEY, request_hash TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('pending','succeeded','uncertain','failed')), response_json BLOB NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE schedules (id TEXT PRIMARY KEY, name TEXT NOT NULL, draft_plan_name TEXT NOT NULL, enabled INTEGER NOT NULL, every_seconds INTEGER NOT NULL, account_ids_json BLOB NOT NULL, rule_ids_json BLOB NOT NULL, route_json BLOB NOT NULL, last_run_at TEXT);
+CREATE TABLE inference_traces (id TEXT PRIMARY KEY, trace_json BLOB NOT NULL);
+CREATE TABLE inference_cache (cache_key TEXT PRIMARY KEY, output_json BLOB NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE eval_labels (case_id TEXT NOT NULL, trace_id TEXT NOT NULL, source TEXT NOT NULL, expected_json BLOB NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(case_id, trace_id, source));
+CREATE TABLE eval_runs (id TEXT PRIMARY KEY, config_json BLOB NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT);
+CREATE TABLE integration_grants (id TEXT PRIMARY KEY, grant_json BLOB NOT NULL);
