@@ -62,6 +62,33 @@ func (s *DB) UpsertClaim(ctx context.Context, v core.Claim) error {
 	return err
 }
 
+func (s *DB) Claims(ctx context.Context, targetType, targetID string) ([]core.Claim, error) {
+	rows, err := s.sql.QueryContext(ctx, `SELECT id,target_type,target_id,name,value_json,basis,evidence_json,confidence,derivation_version,created_at FROM claims WHERE target_type=? AND target_id=? ORDER BY created_at,name,id`, targetType, targetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []core.Claim
+	for rows.Next() {
+		var v core.Claim
+		var confidence sql.NullFloat64
+		var created string
+		if err = rows.Scan(&v.ID, &v.TargetType, &v.TargetID, &v.Name, &v.Value, &v.Basis, &v.Evidence, &confidence, &v.DerivationVersion, &created); err != nil {
+			return nil, err
+		}
+		if confidence.Valid {
+			x := confidence.Float64
+			v.Confidence = &x
+		}
+		v.CreatedAt, err = time.Parse(time.RFC3339Nano, created)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 func (s *DB) Rules(ctx context.Context) ([]core.Rule, error) {
 	rows, err := s.sql.QueryContext(ctx, `SELECT id,account_id,source,provider_id,name,enabled,read_only,sequence,conditions_json,exceptions_json,actions_json,raw_provider,canonical_hash FROM rules ORDER BY account_id,name,id`)
 	if err != nil {

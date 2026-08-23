@@ -60,3 +60,10 @@ func TestExactCommandsRejectLooseArguments(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthAccount(t *testing.T) {
+	req, err := Parse([]string{"auth", "personal"})
+	if err != nil || req.Command != "auth" || req.Name != "personal" {
+		t.Fatalf("request=%+v err=%v", req, err)
+	}
+}

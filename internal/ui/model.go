@@ -209,7 +209,7 @@ func (m Model) updatePalette(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		case "f":
 			if m.preview.Plan.ID != "" && m.preview.Plan.Status == "draft" {
-				return m, m.freeze(m.preview.Plan.ID)
+				return m, m.freezeSelections(m.preview.Plan.ID)
 			}
 		case "a":
 			// Freezing is the explicit approval boundary. Draft and applied plans
@@ -335,6 +335,25 @@ func (m Model) freeze(id string) tea.Cmd {
 	return func() tea.Msg {
 		v, e := m.backend.FreezePlan(m.ctx, id)
 		return planMsg{v, "plan frozen and approved", e}
+	}
+}
+func (m Model) freezeSelections(id string) tea.Cmd {
+	approved, rejected := []string{}, []string{}
+	for _, op := range m.preview.Plan.Operations {
+		if m.selected[op.ID] {
+			approved = append(approved, op.ID)
+		} else {
+			rejected = append(rejected, op.ID)
+		}
+	}
+	return func() tea.Msg {
+		if decisions, ok := m.backend.(PlanDecisionBackend); ok {
+			if _, err := decisions.DecidePlan(m.ctx, id, approved, rejected); err != nil {
+				return planMsg{err: err}
+			}
+		}
+		v, e := m.backend.FreezePlan(m.ctx, id)
+		return planMsg{v, "plan frozen with reviewed selections", e}
 	}
 }
 func (m Model) apply(id string) tea.Cmd {

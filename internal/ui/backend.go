@@ -22,6 +22,12 @@ type Backend interface {
 	SaveEvalLabel(context.Context, core.EvalLabel) error
 }
 
+// PlanDecisionBackend is an optional extension used by interactive backends to
+// persist selective bulk-review decisions immediately before freezing.
+type PlanDecisionBackend interface {
+	DecidePlan(context.Context, string, []string, []string) (core.Plan, error)
+}
+
 type ConversationDetail struct {
 	Conversation core.Conversation
 	Messages     []core.Message
@@ -99,6 +105,10 @@ func (f *FakeBackend) Preview(context.Context, core.CommandDraft) (PlanPreview, 
 }
 func (f *FakeBackend) FreezePlan(context.Context, string) (core.Plan, error) {
 	f.Calls = append(f.Calls, "freeze")
+	return f.Frozen, f.Err
+}
+func (f *FakeBackend) DecidePlan(_ context.Context, _ string, approved, rejected []string) (core.Plan, error) {
+	f.Calls = append(f.Calls, "decide")
 	return f.Frozen, f.Err
 }
 func (f *FakeBackend) ApplyPlan(context.Context, string) (core.Plan, error) {

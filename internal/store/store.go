@@ -54,7 +54,8 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	return s, nil
 }
 
-func (s *DB) Close() error { return s.sql.Close() }
+func (s *DB) Close() error                   { return s.sql.Close() }
+func (s *DB) Ping(ctx context.Context) error { return s.sql.PingContext(ctx) }
 
 func (s *DB) Migrate(ctx context.Context) error {
 	if _, err := s.sql.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)`); err != nil {

@@ -45,6 +45,8 @@ func Parse(args []string) (Request, error) {
 		return req, err
 	}
 	switch args[0] {
+	case "auth":
+		return parseNamed("auth", args[1:])
 	case "sync":
 		return parseSync(args[1:])
 	case "doctor":
@@ -56,6 +58,17 @@ func Parse(args []string) (Request, error) {
 	default:
 		return Request{Mode: ModeNatural, NaturalText: strings.Join(args, " ")}, nil
 	}
+}
+
+func parseNamed(command string, args []string) (Request, error) {
+	fs := newFlagSet(command)
+	if err := fs.Parse(args); err != nil {
+		return Request{}, err
+	}
+	if fs.NArg() != 1 {
+		return Request{}, fmt.Errorf("%s: expected exactly one account name", command)
+	}
+	return Request{Mode: ModeExact, Command: command, Name: fs.Arg(0)}, nil
 }
 
 func parseSync(args []string) (Request, error) {
