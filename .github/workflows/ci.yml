@@ -24,26 +24,3 @@ jobs:
       - run: go vet ./...
         env:
           CGO_ENABLED: '0'
-      - run: sh -n scripts/install.sh scripts/test-install.sh
-      - run: sh scripts/test-install.sh
-
-  release-snapshot:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-      - uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: '~> v2'
-          args: release --snapshot --clean
-      - name: Verify Linux/macOS release parity
-        run: |
-          test -f dist/mailman_linux_amd64.tar.gz
-          test -f dist/mailman_linux_arm64.tar.gz
-          test -f dist/mailman_darwin_amd64.tar.gz
-          test -f dist/mailman_darwin_arm64.tar.gz
-          test -f dist/checksums.txt

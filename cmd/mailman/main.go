@@ -27,6 +27,7 @@ import (
 	"github.com/nmhossain02/mailman/internal/inference"
 	"github.com/nmhossain02/mailman/internal/inference/ollama"
 	openaiadapter "github.com/nmhossain02/mailman/internal/inference/openai"
+	"github.com/nmhossain02/mailman/internal/localinstall"
 	"github.com/nmhossain02/mailman/internal/policy"
 	"github.com/nmhossain02/mailman/internal/provider"
 	"github.com/nmhossain02/mailman/internal/provider/google"
@@ -74,6 +75,9 @@ func run(ctx context.Context, args []string) error {
 		}
 		fmt.Fprintf(os.Stdout, "mailman %s (%s, %s)\n", info.Version, info.Commit, info.Date)
 		return nil
+	}
+	if req.Mode == cli.ModeExact && (req.Command == "install" || req.Command == "uninstall") {
+		return runLocalInstall(req.Command)
 	}
 	dataDir, err := core.DefaultDataDir()
 	if err != nil {
@@ -126,6 +130,36 @@ func run(ctx context.Context, args []string) error {
 	default:
 		return errors.New("unsupported command mode")
 	}
+}
+
+func runLocalInstall(command string) error {
+	destination, err := localinstall.Destination()
+	if err != nil {
+		return err
+	}
+	if command == "uninstall" {
+		if err = localinstall.Uninstall(destination); errors.Is(err, localinstall.ErrNotInstalled) {
+			fmt.Fprintln(os.Stdout, "Mailman is not installed locally.")
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stdout, "Removed %s\n", destination)
+		return nil
+	}
+	source, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("locate running executable: %w", err)
+	}
+	if err = localinstall.Install(source, destination); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stdout, "Installed %s\n", destination)
+	if !localinstall.DirectoryInPath(destination, os.Getenv("PATH")) {
+		fmt.Fprintln(os.Stdout, `Add Mailman to PATH: export PATH="$HOME/.local/bin:$PATH"`)
+	}
+	return nil
 }
 
 func configExists(path string) (bool, error) {

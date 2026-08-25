@@ -14,6 +14,8 @@ func TestParseModes(t *testing.T) {
 		text    string
 	}{
 		{name: "no args opens TUI", mode: ModeTUI},
+		{name: "exact install", args: []string{"install"}, mode: ModeExact, command: "install"},
+		{name: "exact uninstall", args: []string{"uninstall"}, mode: ModeExact, command: "uninstall"},
 		{name: "exact setup", args: []string{"setup"}, mode: ModeExact, command: "setup"},
 		{name: "exact sync", args: []string{"sync", "--json"}, mode: ModeExact, command: "sync"},
 		{name: "exact version", args: []string{"version"}, mode: ModeExact, command: "version"},
@@ -56,7 +58,7 @@ func TestExternalEvalRequiresExplicitPositiveCap(t *testing.T) {
 }
 
 func TestExactCommandsRejectLooseArguments(t *testing.T) {
-	for _, args := range [][]string{{"setup", "again"}, {"doctor", "now"}, {"schedule", "run"}, {"sync", "extra"}, {"eval", "later"}} {
+	for _, args := range [][]string{{"install", "somewhere"}, {"uninstall", "now"}, {"setup", "again"}, {"doctor", "now"}, {"schedule", "run"}, {"sync", "extra"}, {"eval", "later"}} {
 		if _, err := Parse(args); err == nil {
 			t.Fatalf("Parse(%q) should fail", args)
 		}

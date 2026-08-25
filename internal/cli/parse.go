@@ -45,6 +45,10 @@ func Parse(args []string) (Request, error) {
 		return req, err
 	}
 	switch args[0] {
+	case "install":
+		return parseNoArgs("install", args[1:])
+	case "uninstall":
+		return parseNoArgs("uninstall", args[1:])
 	case "setup":
 		return parseNoArgs("setup", args[1:])
 	case "auth":
