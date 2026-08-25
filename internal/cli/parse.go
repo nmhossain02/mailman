@@ -45,6 +45,8 @@ func Parse(args []string) (Request, error) {
 		return req, err
 	}
 	switch args[0] {
+	case "setup":
+		return parseNoArgs("setup", args[1:])
 	case "auth":
 		return parseNamed("auth", args[1:])
 	case "version":

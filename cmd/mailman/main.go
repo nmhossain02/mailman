@@ -80,6 +80,21 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	cfgPath := filepath.Join(dataDir, "config.json")
+	configured, err := configExists(cfgPath)
+	if err != nil {
+		return err
+	}
+	if (req.Mode == cli.ModeExact && req.Command == "setup") || (req.Mode == cli.ModeTUI && !configured) {
+		account, setupErr := config.Setup(os.Stdin, os.Stdout, dataDir)
+		if setupErr != nil {
+			return setupErr
+		}
+		fmt.Fprintf(os.Stdout, "Next, authorize the account:\n  Installed:   mailman auth %s\n  From source: go run ./cmd/mailman auth %s\n", account.ID, account.ID)
+		return nil
+	}
+	if !configured && !(req.Mode == cli.ModeExact && req.Command == "eval run") {
+		return errors.New("no account is configured; run `mailman setup`")
+	}
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		return err
@@ -111,6 +126,17 @@ func run(ctx context.Context, args []string) error {
 	default:
 		return errors.New("unsupported command mode")
 	}
+}
+
+func configExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, fmt.Errorf("inspect config: %w", err)
 }
 
 func newRuntime(ctx context.Context, cfg config.File, dbPath string) (*runtime, error) {
