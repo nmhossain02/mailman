@@ -64,7 +64,7 @@ func Setup(in io.Reader, out io.Writer, dataDir string) (Account, error) {
 		file.Core.Google.ClientSecret, err = p.required("Google OAuth client secret")
 		if err == nil {
 			var enabled bool
-			enabled, err = p.confirm("Enable Google Tasks integration", false)
+			enabled, err = p.confirm("Enable Google Tasks integration (requires tasks.googleapis.com)", false)
 			if enabled {
 				account.Integrations = append(account.Integrations, "google_tasks")
 				account.TaskListID = "@default"
@@ -72,7 +72,7 @@ func Setup(in io.Reader, out io.Writer, dataDir string) (Account, error) {
 		}
 		if err == nil {
 			var enabled bool
-			enabled, err = p.confirm("Enable Google Calendar integration", false)
+			enabled, err = p.confirm("Enable Google Calendar integration (requires calendar-json.googleapis.com)", false)
 			if enabled {
 				account.Integrations = append(account.Integrations, "google_calendar")
 				account.CalendarID = "primary"
@@ -102,7 +102,27 @@ func Setup(in io.Reader, out io.Writer, dataDir string) (Account, error) {
 		return Account{}, err
 	}
 	fmt.Fprintf(out, "\nSetup saved privately at %s\n", configPath)
+	writeGoogleAPIRequirements(out, account)
 	return account, nil
+}
+
+func writeGoogleAPIRequirements(out io.Writer, account Account) {
+	services := make([]string, 0, 2)
+	for _, integration := range account.Integrations {
+		switch integration {
+		case "google_tasks":
+			services = append(services, "tasks.googleapis.com")
+		case "google_calendar":
+			services = append(services, "calendar-json.googleapis.com")
+		}
+	}
+	if len(services) == 0 {
+		return
+	}
+	fmt.Fprintln(out, "Before authorization, enable these APIs in the same Google Cloud project:")
+	for _, service := range services {
+		fmt.Fprintf(out, "  - %s\n", service)
+	}
 }
 
 func saveNew(path string, value File) (err error) {

@@ -14,6 +14,9 @@ Mailbox changes are previewed before they are applied.
 For Gmail, create a **Desktop app** OAuth client in Google Cloud and enable the
 Gmail API. Keep its client ID and client secret ready.
 
+If you select the optional Tasks or Calendar integrations during setup, also
+enable the Google Tasks API or Google Calendar API in that project.
+
 For Outlook, create a public-client application in Microsoft Entra and add this
 redirect URI:
 

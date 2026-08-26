@@ -44,16 +44,25 @@ func TestSetupGmailCreatesPrivateCompleteConfig(t *testing.T) {
 	if !strings.Contains(output.String(), path) {
 		t.Fatalf("output does not identify saved config: %q", output.String())
 	}
+	if strings.Contains(output.String(), "Before authorization") {
+		t.Fatalf("setup printed integration requirements when none were selected: %q", output.String())
+	}
 }
 
 func TestSetupCanEnableGoogleIntegrationsWithoutEditingJSON(t *testing.T) {
 	dir := t.TempDir()
-	account, err := Setup(strings.NewReader("gmail\nmain\nMy Mail\nclient-id\nclient-secret\nyes\ny\n"), &bytes.Buffer{}, dir)
+	var output bytes.Buffer
+	account, err := Setup(strings.NewReader("gmail\nmain\nMy Mail\nclient-id\nclient-secret\nyes\ny\n"), &output, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Join(account.Integrations, ",") != "google_tasks,google_calendar" || account.TaskListID != "@default" || account.CalendarID != "primary" {
 		t.Fatalf("unexpected integrations: %+v", account)
+	}
+	for _, service := range []string{"tasks.googleapis.com", "calendar-json.googleapis.com"} {
+		if !strings.Contains(output.String(), service) {
+			t.Fatalf("setup output does not mention required API %q: %s", service, output.String())
+		}
 	}
 }
 
