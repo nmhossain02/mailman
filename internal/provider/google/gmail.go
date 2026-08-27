@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/nmhossain02/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/progress"
 	"github.com/nmhossain02/mailman/internal/provider"
 )
 
@@ -232,6 +233,7 @@ func (g *Gmail) fetchMetadata(ctx context.Context, ids []string) ([]provider.Pro
 		}
 		m.Raw, _ = json.Marshal(m)
 		out = append(out, g.toProvider(m, false))
+		progress.Report(ctx, progress.Event{Stage: progress.StageMetadata, Current: len(out), Total: len(ids)})
 	}
 	return out, nil
 }
@@ -284,6 +286,7 @@ func (g *Gmail) FetchContent(ctx context.Context, ids []string) ([]provider.Prov
 		}
 		raw, _ := json.Marshal(m)
 		out = append(out, provider.ProviderContent{MessageID: id, PlainText: partText(m.Payload), Raw: raw})
+		progress.Report(ctx, progress.Event{Stage: progress.StageContent, Current: len(out), Total: len(ids)})
 	}
 	return out, nil
 }

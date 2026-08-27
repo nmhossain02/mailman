@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	neturl "net/url"
 	"os"
@@ -29,6 +30,7 @@ import (
 	openaiadapter "github.com/nmhossain02/mailman/internal/inference/openai"
 	"github.com/nmhossain02/mailman/internal/localinstall"
 	"github.com/nmhossain02/mailman/internal/policy"
+	"github.com/nmhossain02/mailman/internal/progress"
 	"github.com/nmhossain02/mailman/internal/provider"
 	"github.com/nmhossain02/mailman/internal/provider/google"
 	"github.com/nmhossain02/mailman/internal/provider/outlook"
@@ -259,7 +261,8 @@ func runExact(ctx context.Context, rt *runtime, b *backend, req cli.Request, dat
 		service := app.SyncService{Store: rt.db}
 		results := map[string]app.SyncResult{}
 		for id, p := range rt.mail {
-			r, err := service.Sync(ctx, id, "mail", p, rt.cfg.Core.Routing)
+			syncCtx := progress.WithReporter(ctx, syncProgressReporter(os.Stderr, id))
+			r, err := service.Sync(syncCtx, id, "mail", p, rt.cfg.Core.Routing)
 			if err != nil {
 				return err
 			}
@@ -280,6 +283,32 @@ func runExact(ctx context.Context, rt *runtime, b *backend, req cli.Request, dat
 		return runEval(ctx, rt, req, dataDir)
 	default:
 		return fmt.Errorf("unsupported exact command %q", req.Command)
+	}
+}
+
+func syncProgressReporter(out io.Writer, account string) progress.Reporter {
+	return func(event progress.Event) {
+		switch event.Stage {
+		case progress.StageStarting:
+			mode := "full"
+			if event.Incremental {
+				mode = "incremental"
+			}
+			fmt.Fprintf(out, "sync %s: starting %s sync\n", account, mode)
+		case progress.StageFetchingPage:
+			fmt.Fprintf(out, "sync %s: fetching page %d\n", account, event.Current)
+		case progress.StageMetadata, progress.StageContent:
+			if event.Current != 1 && event.Current != event.Total && event.Current%50 != 0 {
+				return
+			}
+			fmt.Fprintf(out, "sync %s: %s %d/%d\n", account, event.Stage, event.Current, event.Total)
+		case progress.StagePageCommitted:
+			fmt.Fprintf(out, "sync %s: committed page %d (%d messages)\n", account, event.Pages, event.Messages)
+		case progress.StageRules:
+			fmt.Fprintf(out, "sync %s: refreshing provider rules\n", account)
+		case progress.StageDone:
+			fmt.Fprintf(out, "sync %s: complete (%d pages, %d messages, %d conversations)\n", account, event.Pages, event.Messages, event.Conversations)
+		}
 	}
 }
 

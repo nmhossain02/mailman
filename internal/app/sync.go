@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nmhossain02/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/progress"
 	"github.com/nmhossain02/mailman/internal/provider"
 )
 
@@ -44,10 +45,12 @@ func (s SyncService) Sync(ctx context.Context, accountID, scope string, mail pro
 		return SyncResult{}, fmt.Errorf("read checkpoint: %w", err)
 	}
 	cursor := provider.OpaqueCursor(checkpoint)
+	progress.Report(ctx, progress.Event{Stage: progress.StageStarting, Incremental: checkpoint != ""})
 	changed := make(map[string][]core.Message)
 	conversations := make(map[string]core.Conversation)
 	result := SyncResult{}
 	for {
+		progress.Report(ctx, progress.Event{Stage: progress.StageFetchingPage, Current: result.Pages + 1})
 		page, err := mail.Sync(ctx, cursor)
 		if err != nil {
 			return result, fmt.Errorf("sync page: %w", err)
@@ -97,6 +100,7 @@ func (s SyncService) Sync(ctx context.Context, accountID, scope string, mail pro
 		}
 		result.Pages++
 		result.ChangedMessages += len(messages)
+		progress.Report(ctx, progress.Event{Stage: progress.StagePageCommitted, Pages: result.Pages, Messages: result.ChangedMessages})
 		for _, m := range messages {
 			changed[m.ConversationID] = append(changed[m.ConversationID], m)
 		}
@@ -111,6 +115,7 @@ func (s SyncService) Sync(ctx context.Context, accountID, scope string, mail pro
 		}
 		cursor = page.Continuation
 	}
+	progress.Report(ctx, progress.Event{Stage: progress.StageRules})
 	rules, err := mail.ListRules(ctx)
 	if err != nil {
 		return result, fmt.Errorf("list native rules: %w", err)
@@ -143,6 +148,7 @@ func (s SyncService) Sync(ctx context.Context, accountID, scope string, mail pro
 		}
 		result.ChangedConversations++
 	}
+	progress.Report(ctx, progress.Event{Stage: progress.StageDone, Pages: result.Pages, Messages: result.ChangedMessages, Conversations: result.ChangedConversations})
 	return result, nil
 }
 

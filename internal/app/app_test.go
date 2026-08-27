@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/nmhossain02/mailman/internal/core"
 	"github.com/nmhossain02/mailman/internal/inference"
 	"github.com/nmhossain02/mailman/internal/policy"
+	"github.com/nmhossain02/mailman/internal/progress"
 	"github.com/nmhossain02/mailman/internal/provider"
 	"github.com/nmhossain02/mailman/internal/store"
 )
@@ -37,6 +39,10 @@ func TestSyncOnlyProcessesChangedConversationAndPromotesFinalCursor(t *testing.T
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	calls := 0
 	p := &processed{}
+	var stages []string
+	ctx := progress.WithReporter(context.Background(), func(event progress.Event) {
+		stages = append(stages, event.Stage)
+	})
 	mail := &provider.FakeMailProvider{ProviderID: "gmail", SyncFunc: func(_ context.Context, c provider.OpaqueCursor) (provider.SyncPage, error) {
 		calls++
 		if calls == 1 {
@@ -46,12 +52,16 @@ func TestSyncOnlyProcessesChangedConversationAndPromotesFinalCursor(t *testing.T
 	}, ContentFunc: func(_ context.Context, ids []string) ([]provider.ProviderContent, error) {
 		return []provider.ProviderContent{{MessageID: ids[0], PlainText: "body"}}, nil
 	}}
-	got, err := (SyncService{Store: db, Processor: p, Now: func() time.Time { return now }}).Sync(context.Background(), "a", "mail", mail, core.RoutePolicy{Mode: "local_only", Privacy: "local_only"})
+	got, err := (SyncService{Store: db, Processor: p, Now: func() time.Time { return now }}).Sync(ctx, "a", "mail", mail, core.RoutePolicy{Mode: "local_only", Privacy: "local_only"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.Pages != 2 || got.ChangedMessages != 2 || got.ChangedConversations != 1 || len(p.ids) != 1 || p.ids[0] != "a:c1" {
 		t.Fatalf("bad incremental result %#v processed=%v", got, p.ids)
+	}
+	wantStages := []string{progress.StageStarting, progress.StageFetchingPage, progress.StagePageCommitted, progress.StageFetchingPage, progress.StagePageCommitted, progress.StageRules, progress.StageDone}
+	if strings.Join(stages, ",") != strings.Join(wantStages, ",") {
+		t.Fatalf("progress stages = %v, want %v", stages, wantStages)
 	}
 	cur, ok, err := db.Cursor(context.Background(), "a", "mail")
 	if err != nil || !ok || cur != `"done"` {

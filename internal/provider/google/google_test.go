@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/nmhossain02/mailman/internal/core"
+	"github.com/nmhossain02/mailman/internal/progress"
 	"github.com/nmhossain02/mailman/internal/provider"
 	"github.com/nmhossain02/mailman/internal/secret"
 )
@@ -47,12 +48,17 @@ func TestGmailFullSyncPaginationAndFinalCheckpoint(t *testing.T) {
 	}))
 	defer s.Close()
 	g := NewGmail(s.Client(), s.URL, "a")
-	p1, err := g.Sync(context.Background(), nil)
+	var events []progress.Event
+	ctx := progress.WithReporter(context.Background(), func(event progress.Event) { events = append(events, event) })
+	p1, err := g.Sync(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if p1.Done || len(p1.Checkpoint) != 0 || len(p1.Continuation) == 0 {
 		t.Fatalf("intermediate page leaked checkpoint: %+v", p1)
+	}
+	if len(events) != 1 || events[0].Stage != progress.StageMetadata || events[0].Current != 1 || events[0].Total != 1 {
+		t.Fatalf("metadata progress = %+v", events)
 	}
 	p2, err := g.Sync(context.Background(), p1.Continuation)
 	if err != nil {
@@ -75,6 +81,21 @@ func TestGmailNoCheckpointWhenFinalProfileFails(t *testing.T) {
 	page, err := NewGmail(s.Client(), s.URL, "a").Sync(context.Background(), nil)
 	if err == nil || len(page.Checkpoint) != 0 {
 		t.Fatalf("page=%+v err=%v", page, err)
+	}
+}
+
+func TestGmailReportsContentProgress(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(fixture(t, "gmail_message.json"))
+	}))
+	defer s.Close()
+	var events []progress.Event
+	ctx := progress.WithReporter(context.Background(), func(event progress.Event) { events = append(events, event) })
+	if _, err := NewGmail(s.Client(), s.URL, "a").FetchContent(ctx, []string{"m1", "m2"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 || events[0].Stage != progress.StageContent || events[0].Current != 1 || events[1].Current != 2 || events[1].Total != 2 {
+		t.Fatalf("content progress = %+v", events)
 	}
 }
 
