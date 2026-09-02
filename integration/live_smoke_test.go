@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nmhossain02/mailman/internal/inference"
-	"github.com/nmhossain02/mailman/internal/inference/ollama"
-	openaiadapter "github.com/nmhossain02/mailman/internal/inference/openai"
-	"github.com/nmhossain02/mailman/internal/provider/google"
-	"github.com/nmhossain02/mailman/internal/provider/outlook"
+	"github.com/nmhossain02/mailman/internal/adapters/google"
+	"github.com/nmhossain02/mailman/internal/adapters/outlook"
+	inference "github.com/nmhossain02/mailman/internal/agent"
+	"github.com/nmhossain02/mailman/internal/agent/ollama"
+	openaiadapter "github.com/nmhossain02/mailman/internal/agent/openai"
 )
 
 func bearerClient(token string) *http.Client {

@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nmhossain02/mailman/internal/app"
-	"github.com/nmhossain02/mailman/internal/core"
-	evalpkg "github.com/nmhossain02/mailman/internal/eval"
-	"github.com/nmhossain02/mailman/internal/inference"
-	"github.com/nmhossain02/mailman/internal/policy"
-	"github.com/nmhossain02/mailman/internal/provider"
-	"github.com/nmhossain02/mailman/internal/store"
+	store "github.com/nmhossain02/mailman/internal/adapters/sqlite"
+	inference "github.com/nmhossain02/mailman/internal/agent"
+	evalpkg "github.com/nmhossain02/mailman/internal/agent/eval"
+	app "github.com/nmhossain02/mailman/internal/application"
+	"github.com/nmhossain02/mailman/internal/application/provider"
+	policy "github.com/nmhossain02/mailman/internal/automation"
+	core "github.com/nmhossain02/mailman/internal/domain"
 )
 
 func TestFixtureBackedEndToEnd(t *testing.T) {
@@ -72,16 +72,16 @@ func TestFixtureBackedEndToEnd(t *testing.T) {
 	if err != nil || plan.Status != "completed" {
 		t.Fatalf("apply status=%s err=%v", plan.Status, err)
 	}
-	trace := core.InferenceTrace{ID: "trace", TargetID: "account:c", TaskName: "translate_command", InputSnapshot: json.RawMessage(`{"request":"archive alerts"}`), CanonicalOutput: mustJSON(draft), BackendID: "fixture-local", BackendClass: "local", Outcome: "ok", Selected: true, StartedAt: now, CompletedAt: now}
+	trace := inference.InferenceTrace{ID: "trace", TargetID: "account:c", TaskName: "translate_command", InputSnapshot: json.RawMessage(`{"request":"archive alerts"}`), CanonicalOutput: mustJSON(draft), BackendID: "fixture-local", BackendClass: "local", Outcome: "ok", Selected: true, StartedAt: now, CompletedAt: now}
 	if err = db.PutTrace(ctx, trace); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = db.Trace(ctx, "trace"); err != nil {
 		t.Fatal(err)
 	}
-	record := evalpkg.DatasetRecord{Case: core.EvalCase{ID: "case", Dataset: "fixture", TaskName: "translate_command", TaskVersion: "1", InputJSON: json.RawMessage(`{"request":"archive alerts"}`)}, ExpectedJSON: mustJSON(draft)}
+	record := evalpkg.DatasetRecord{Case: inference.EvalCase{ID: "case", Dataset: "fixture", TaskName: "translate_command", TaskVersion: "1", InputJSON: json.RawMessage(`{"request":"archive alerts"}`)}, ExpectedJSON: mustJSON(draft)}
 	runCfg := evalpkg.Snapshot("run", "fixture", evalpkg.RouteLocalOnly)
-	result, err := evalpkg.Run(ctx, runCfg, []evalpkg.DatasetRecord{record}, func(context.Context, core.EvalCase, string) evalpkg.Observation {
+	result, err := evalpkg.Run(ctx, runCfg, []evalpkg.DatasetRecord{record}, func(context.Context, inference.EvalCase, string) evalpkg.Observation {
 		return evalpkg.Observation{Outcome: "ok", Output: mustJSON(draft)}
 	})
 	if err != nil {

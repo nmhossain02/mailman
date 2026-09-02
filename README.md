@@ -57,6 +57,9 @@ Inside the TUI:
 - `p` previews a plan, `f` freezes it, and `a` applies it.
 - `q` quits.
 
+Known issue: opening the natural-language prompt can freeze in some mailboxes.
+See [ISSUE_01.md](ISSUE_01.md) before relying on `/` for bulk work.
+
 Example command:
 
 ```text
@@ -96,5 +99,5 @@ The equivalent source command is:
 go run ./cmd/mailman uninstall
 ```
 
-Run tests with `go test ./...`. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
-for the domain and provider contracts.
+Run tests with `go test ./...`. See [ARCHITECTURE.md](ARCHITECTURE.md) for package
+ownership and enforced dependency rules.
