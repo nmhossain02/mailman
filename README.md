@@ -57,9 +57,6 @@ Inside the TUI:
 - `p` previews a plan, `f` freezes it, and `a` applies it.
 - `q` quits.
 
-Known issue: opening the natural-language prompt can freeze in some mailboxes.
-See [ISSUE_01.md](ISSUE_01.md) before relying on `/` for bulk work.
-
 Example command:
 
 ```text

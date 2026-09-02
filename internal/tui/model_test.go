@@ -3,6 +3,8 @@ package tui
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -56,6 +58,7 @@ func TestViewsRenderUsefulDomainSummaries(t *testing.T) {
 	}
 	for _, check := range checks {
 		model.view = check.view
+		model = model.visualChange()
 		content := model.View().Content
 		for _, word := range check.words {
 			if !strings.Contains(content, word) {
@@ -66,11 +69,109 @@ func TestViewsRenderUsefulDomainSummaries(t *testing.T) {
 
 	model.view = ConversationView
 	model.detail = backend.Details["c1"]
+	model = model.visualChange()
 	detail := model.View().Content
 	for _, word := range []string{"Conversation: Quarterly alert", "claim kind", "task receipt", "created"} {
 		if !strings.Contains(detail, word) {
 			t.Errorf("detail missing %q:\n%s", word, detail)
 		}
+	}
+}
+
+func TestLargeConversationListKeepsPaletteVisible(t *testing.T) {
+	model := NewModel(context.Background(), fixtureBackend())
+	model.width, model.height = 100, 12
+	model.conversations = make([]core.Conversation, 20_000)
+	for i := range model.conversations {
+		model.conversations[i] = core.Conversation{ID: fmt.Sprintf("c-%d", i), Subject: fmt.Sprintf("conversation-%d", i), MessageCount: 1}
+	}
+
+	model, _ = update(model, key('/', "/"))
+	content := model.View().Content
+	if !strings.Contains(content, "Command:") || !strings.Contains(content, "Type a natural command") {
+		t.Fatalf("palette is not visible:\n%s", content)
+	}
+	if lines := len(strings.Split(content, "\n")); lines > model.height {
+		t.Fatalf("rendered %d lines for height %d", lines, model.height)
+	}
+}
+
+func TestViewRebuildsOnlyAfterVisualChange(t *testing.T) {
+	model := NewModel(context.Background(), fixtureBackend())
+	model.width, model.height = 80, 24
+	model.conversations = fixtureBackend().Conversations
+	first := model.View()
+	builds := model.renderCache.builds
+
+	model, _ = update(model, struct{}{})
+	second := model.View()
+	if model.renderCache.builds != builds || second.Content != first.Content {
+		t.Fatalf("non-visual message rebuilt view: builds=%d want=%d", model.renderCache.builds, builds)
+	}
+
+	model, _ = update(model, key('/', "/"))
+	third := model.View()
+	if model.renderCache.builds != builds+1 || third.Content == first.Content {
+		t.Fatalf("visual change did not rebuild view: builds=%d want=%d", model.renderCache.builds, builds+1)
+	}
+}
+
+func TestProgramAcceptsPaletteInputAtLargeMailboxScale(t *testing.T) {
+	backend := fixtureBackend()
+	backend.Conversations = make([]core.Conversation, 20_000)
+	for i := range backend.Conversations {
+		backend.Conversations[i] = core.Conversation{ID: fmt.Sprintf("c-%d", i), Subject: "conversation", MessageCount: 1}
+	}
+	program := tea.NewProgram(
+		NewModel(context.Background(), backend),
+		tea.WithInput(nil),
+		tea.WithOutput(io.Discard),
+		tea.WithWindowSize(80, 24),
+		tea.WithoutSignals(),
+	)
+	type result struct {
+		model tea.Model
+		err   error
+	}
+	finished := make(chan result, 1)
+	go func() {
+		model, err := program.Run()
+		finished <- result{model: model, err: err}
+	}()
+	go func() {
+		program.Send(key('/', "/"))
+		program.Send(key('h', "h"))
+		program.Send(key('i', "i"))
+		program.Send(key(tea.KeyEscape, ""))
+		program.Quit()
+	}()
+
+	select {
+	case got := <-finished:
+		if got.err != nil {
+			t.Fatal(got.err)
+		}
+		model := got.model.(Model)
+		if model.palette || model.paletteText != "hi" {
+			t.Fatalf("palette interaction did not complete: open=%v text=%q", model.palette, model.paletteText)
+		}
+	case <-time.After(2 * time.Second):
+		program.Kill()
+		t.Fatal("palette interaction did not complete before timeout")
+	}
+}
+
+func BenchmarkLargeInboxView(b *testing.B) {
+	model := NewModel(context.Background(), fixtureBackend())
+	model.width, model.height = 100, 24
+	model.conversations = make([]core.Conversation, 20_000)
+	for i := range model.conversations {
+		model.conversations[i] = core.Conversation{Subject: "conversation", MessageCount: 1}
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		_ = model.buildView()
 	}
 }
 

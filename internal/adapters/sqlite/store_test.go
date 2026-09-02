@@ -192,6 +192,44 @@ func TestSyncRepositoryMethods(t *testing.T) {
 	}
 }
 
+func TestConversationsReturnsAggregateMessageCounts(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	now := time.Now().UTC()
+	for _, conversation := range []core.Conversation{
+		{ID: "c1", AccountID: "a", ProviderKey: "pc1", Subject: "one", LastMessageAt: now},
+		{ID: "c2", AccountID: "a", ProviderKey: "pc2", Subject: "two", LastMessageAt: now.Add(-time.Hour)},
+	} {
+		if err := db.UpsertConversation(ctx, conversation); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, message := range []core.Message{
+		fixtureMessage("m1", "one", now),
+		fixtureMessage("m2", "two", now),
+		fixtureMessage("m3", "three", now),
+	} {
+		message.ConversationID = "c1"
+		if message.ID == "m3" {
+			message.ConversationID = "c2"
+		}
+		if err := db.UpsertMessage(ctx, message); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	conversations, err := db.Conversations(ctx, "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(conversations) != 2 || conversations[0].MessageCount != 2 || conversations[1].MessageCount != 1 {
+		t.Fatalf("conversation counts = %#v", conversations)
+	}
+	if len(conversations[0].MessageIDs) != 0 || len(conversations[1].MessageIDs) != 0 {
+		t.Fatalf("list unexpectedly loaded message IDs: %#v", conversations)
+	}
+}
+
 func TestCommitSyncPagePromotesOnlyFinalCheckpoint(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

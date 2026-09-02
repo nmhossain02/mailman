@@ -260,11 +260,12 @@ func (s *DB) Conversation(ctx context.Context, id string) (core.Conversation, er
 	for _, m := range rows {
 		c.MessageIDs = append(c.MessageIDs, m.ID)
 	}
+	c.MessageCount = len(c.MessageIDs)
 	return c, nil
 }
 
 func (s *DB) Conversations(ctx context.Context, accountID string) ([]core.Conversation, error) {
-	rows, err := s.sql.QueryContext(ctx, `SELECT id,account_id,provider_key,subject,last_message_at FROM conversations WHERE (?='' OR account_id=?) ORDER BY last_message_at DESC,id`, accountID, accountID)
+	rows, err := s.sql.QueryContext(ctx, `SELECT c.id,c.account_id,c.provider_key,c.subject,c.last_message_at,COUNT(m.id) FROM conversations c LEFT JOIN messages m ON m.conversation_id=c.id WHERE (?='' OR c.account_id=?) GROUP BY c.id,c.account_id,c.provider_key,c.subject,c.last_message_at ORDER BY c.last_message_at DESC,c.id`, accountID, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +273,7 @@ func (s *DB) Conversations(ctx context.Context, accountID string) ([]core.Conver
 	for rows.Next() {
 		var c core.Conversation
 		var last string
-		if err = rows.Scan(&c.ID, &c.AccountID, &c.ProviderKey, &c.Subject, &last); err != nil {
+		if err = rows.Scan(&c.ID, &c.AccountID, &c.ProviderKey, &c.Subject, &last, &c.MessageCount); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -289,15 +290,6 @@ func (s *DB) Conversations(ctx context.Context, accountID string) ([]core.Conver
 	}
 	if err = rows.Close(); err != nil {
 		return nil, err
-	}
-	for i := range out {
-		messages, e := s.ConversationMessages(ctx, out[i].ID)
-		if e != nil {
-			return nil, e
-		}
-		for _, m := range messages {
-			out[i].MessageIDs = append(out[i].MessageIDs, m.ID)
-		}
 	}
 	return out, nil
 }

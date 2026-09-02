@@ -20,6 +20,7 @@ type Conversation struct {
 	ID, AccountID, ProviderKey string
 	Subject                    string
 	MessageIDs                 []string
+	MessageCount               int
 	LastMessageAt              time.Time
 }
 

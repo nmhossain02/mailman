@@ -3,6 +3,7 @@
 /mailman.exe
 coverage.out
 dist/
+/issues/
 .env
 *.db
 *.db-shm

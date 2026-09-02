@@ -54,9 +54,8 @@ TUI calls that service only through `application.Workbench`.
 `internal/application/provider` defines the provider-neutral contract consumed
 by synchronization and plan workflows; Gmail and Outlook implement it. This
 lets use cases change without making provider adapters the owners of product
-policy. The credential-store interface is currently an explicit exception: it
-lives beside its OS-keyring implementation while its longer-term ownership is
-tracked in [ISSUES.md](ISSUES.md).
+policy. The credential-store interface is currently an explicit exception and
+lives beside its OS-keyring implementation.
 
 ## Enforced dependency rules
 

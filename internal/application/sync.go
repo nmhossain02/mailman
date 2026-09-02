@@ -166,6 +166,7 @@ func normalizePage(account string, in []provider.ProviderMessage) ([]core.Messag
 		c.ProviderKey = p.ConversationKey
 		c.Subject = p.Subject
 		c.MessageIDs = append(c.MessageIDs, id)
+		c.MessageCount = len(c.MessageIDs)
 		if p.ReceivedAt.After(c.LastMessageAt) {
 			c.LastMessageAt = p.ReceivedAt
 		}

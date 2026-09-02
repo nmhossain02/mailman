@@ -51,13 +51,21 @@ type Model struct {
 	selected       map[string]bool
 	status         string
 	err            error
+	renderVersion  uint64
+	renderCache    *viewCache
+}
+
+type viewCache struct {
+	version uint64
+	view    tea.View
+	builds  uint64
 }
 
 func NewModel(ctx context.Context, backend Backend) Model {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return Model{backend: backend, ctx: ctx, selected: make(map[string]bool)}
+	return Model{backend: backend, ctx: ctx, selected: make(map[string]bool), renderVersion: 1, renderCache: &viewCache{}}
 }
 
 func (m Model) Init() tea.Cmd { return m.loadConversations() }
@@ -65,32 +73,35 @@ func (m Model) Init() tea.Cmd { return m.loadConversations() }
 func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := message.(type) {
 	case tea.WindowSizeMsg:
+		if m.width == msg.Width && m.height == msg.Height {
+			return m, nil
+		}
 		m.width, m.height = msg.Width, msg.Height
-		return m, nil
+		return m.visualChange(), nil
 	case conversationsMsg:
 		m.conversations, m.err = msg.items, msg.err
-		return m, nil
+		return m.visualChange(), nil
 	case detailMsg:
 		m.detail, m.err = msg.detail, msg.err
 		if msg.err == nil {
 			m.view, m.cursor = ConversationView, 0
 		}
-		return m, nil
+		return m.visualChange(), nil
 	case rulesMsg:
 		m.rules, m.err = msg.items, msg.err
-		return m, nil
+		return m.visualChange(), nil
 	case schedulesMsg:
 		m.schedules, m.err = msg.items, msg.err
-		return m, nil
+		return m.visualChange(), nil
 	case plansMsg:
 		m.plans, m.err = msg.items, msg.err
-		return m, nil
+		return m.visualChange(), nil
 	case interpretationMsg:
 		m.interpretation, m.err = msg.result, msg.err
 		if msg.err == nil {
 			m.phase = paletteInterpreted
 		}
-		return m, nil
+		return m.visualChange(), nil
 	case previewMsg:
 		m.preview, m.err = msg.preview, msg.err
 		if msg.err == nil {
@@ -100,24 +111,29 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				m.selected[operation.ID] = true
 			}
 		}
-		return m, nil
+		return m.visualChange(), nil
 	case planMsg:
 		m.err = msg.err
 		if msg.err == nil {
 			m.preview.Plan = msg.plan
 			m.status = msg.status
 		}
-		return m, nil
+		return m.visualChange(), nil
 	case labelSavedMsg:
 		m.err = msg.err
 		if msg.err == nil {
 			m.status = "correction saved as eval label"
 		}
-		return m, nil
+		return m.visualChange(), nil
 	case tea.KeyPressMsg:
 		return m.updateKey(msg)
 	}
 	return m, nil
+}
+
+func (m Model) visualChange() Model {
+	m.renderVersion++
+	return m
 }
 
 func (m Model) updateKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -130,34 +146,44 @@ func (m Model) updateKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "/":
 		m.palette, m.phase, m.paletteText, m.status, m.err = true, paletteInput, "", "", nil
+		return m.visualChange(), nil
 	case "1":
 		m.view, m.cursor = ConversationsView, 0
-		return m, m.loadConversations()
+		return m.visualChange(), m.loadConversations()
 	case "2":
 		m.view, m.cursor = RulesView, 0
-		return m, m.loadRules()
+		return m.visualChange(), m.loadRules()
 	case "3":
 		m.view, m.cursor = SchedulesView, 0
-		return m, m.loadSchedules()
+		return m.visualChange(), m.loadSchedules()
 	case "4":
 		m.view, m.cursor = PlansView, 0
-		return m, m.loadPlans()
+		return m.visualChange(), m.loadPlans()
 	case "esc":
 		if m.view == ConversationView {
 			m.view, m.cursor = ConversationsView, 0
+			return m.visualChange(), nil
 		}
 	case "enter":
 		if m.view == ConversationsView && len(m.conversations) > 0 {
 			return m, m.loadDetail(m.conversations[m.cursor].ID)
 		}
 	case "j", "down":
-		m.cursor = min(m.cursor+1, m.itemCount()-1)
+		next := boundedCursor(m.cursor+1, m.itemCount())
+		if next != m.cursor {
+			m.cursor = next
+			return m.visualChange(), nil
+		}
 	case "k", "up":
-		m.cursor = max(m.cursor-1, 0)
+		next := boundedCursor(m.cursor-1, m.itemCount())
+		if next != m.cursor {
+			m.cursor = next
+			return m.visualChange(), nil
+		}
 	case "tab":
 		m.view = nextListView(m.view)
 		m.cursor = 0
-		return m, m.loadCurrent()
+		return m.visualChange(), m.loadCurrent()
 	}
 	return m, nil
 }
@@ -166,7 +192,7 @@ func (m Model) updatePalette(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	stroke := key.String()
 	if stroke == "esc" {
 		m.palette, m.err = false, nil
-		return m, nil
+		return m.visualChange(), nil
 	}
 	switch m.phase {
 	case paletteInput:
@@ -178,16 +204,19 @@ func (m Model) updatePalette(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "backspace":
 			if chars := []rune(m.paletteText); len(chars) > 0 {
 				m.paletteText = string(chars[:len(chars)-1])
+				return m.visualChange(), nil
 			}
 		default:
 			if key.Text != "" {
 				m.paletteText += key.Text
+				return m.visualChange(), nil
 			}
 		}
 	case paletteInterpreted:
 		switch stroke {
 		case "e":
 			m.phase = paletteInput
+			return m.visualChange(), nil
 		case "p":
 			if m.interpretation.Draft.Clarification == "" {
 				return m, m.loadPreview(m.interpretation.Draft)
@@ -200,12 +229,21 @@ func (m Model) updatePalette(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case palettePreview:
 		switch stroke {
 		case "j", "down":
-			m.cursor = min(m.cursor+1, len(m.preview.Plan.Operations)-1)
+			next := boundedCursor(m.cursor+1, len(m.preview.Plan.Operations))
+			if next != m.cursor {
+				m.cursor = next
+				return m.visualChange(), nil
+			}
 		case "k", "up":
-			m.cursor = max(m.cursor-1, 0)
+			next := boundedCursor(m.cursor-1, len(m.preview.Plan.Operations))
+			if next != m.cursor {
+				m.cursor = next
+				return m.visualChange(), nil
+			}
 		case " ", "space", "x":
 			if operation, ok := m.currentOperation(); ok {
 				m.selected[operation.ID] = !m.selected[operation.ID]
+				return m.visualChange(), nil
 			}
 		case "f":
 			if m.preview.Plan.ID != "" && m.preview.Plan.Status == "draft" {
@@ -383,65 +421,113 @@ func (m Model) loadCurrent() tea.Cmd {
 }
 
 func (m Model) View() tea.View {
-	var body string
-	switch m.view {
-	case ConversationView:
-		body = m.renderConversation()
-	case RulesView:
-		body = m.renderRules()
-	case SchedulesView:
-		body = m.renderSchedules()
-	case PlansView:
-		body = m.renderPlans()
-	default:
-		body = m.renderConversations()
+	if m.renderCache != nil && m.renderCache.version == m.renderVersion {
+		return m.renderCache.view
 	}
-	content := "Mailman  [1] Conversations  [2] Rules  [3] Schedules  [4] Plans\n" + body
+	view := m.buildView()
+	if m.renderCache != nil {
+		m.renderCache.version = m.renderVersion
+		m.renderCache.view = view
+		m.renderCache.builds++
+	}
+	return view
+}
+
+func (m Model) buildView() tea.View {
+	height := m.height
+	if height <= 0 {
+		height = 24
+	}
+	extraLines := 0
+	if m.err != nil {
+		extraLines++
+	}
+	if m.status != "" {
+		extraLines++
+	}
+	bodyLines := max(1, height-3-extraLines)
+	controls := "/ command  tab next  j/k move  q quit"
 	if m.palette {
-		content += "\n\n" + m.renderPalette()
-	} else {
-		content += "\n\n/ command  tab next  j/k move  q quit"
+		// The palette is the active surface. Keep a one-line body landmark and
+		// give the remaining terminal height to the palette so it cannot be
+		// appended below an off-screen conversation list.
+		bodyLines = 1
+		controls = m.renderPalette(max(1, height-3-extraLines))
 	}
+	body := m.renderCurrent(bodyLines)
+	content := "Mailman  [1] Conversations  [2] Rules  [3] Schedules  [4] Plans\n" + body
+	content += "\n\n" + controls
 	if m.err != nil {
 		content += "\nError: " + m.err.Error()
 	}
 	if m.status != "" {
 		content += "\n" + m.status
 	}
-	if m.width > 0 {
-		content = clampLines(content, m.width, m.height)
-	}
+	content = clampLines(content, m.width, height)
 	return tea.NewView(content)
 }
 
-func (m Model) renderConversations() string {
-	lines := []string{"Conversations"}
-	for index, conversation := range m.conversations {
-		lines = append(lines, row(index == m.cursor, fmt.Sprintf("%s  %d messages  %s", conversation.Subject, len(conversation.MessageIDs), conversation.LastMessageAt.Format("2006-01-02"))))
+func (m Model) renderCurrent(maxLines int) string {
+	var body string
+	switch m.view {
+	case ConversationView:
+		body = m.renderConversation(maxLines)
+	case RulesView:
+		body = m.renderRules(maxLines)
+	case SchedulesView:
+		body = m.renderSchedules(maxLines)
+	case PlansView:
+		body = m.renderPlans(maxLines)
+	default:
+		body = m.renderConversations(maxLines)
 	}
-	if len(m.conversations) == 0 {
+	return body
+}
+
+func (m Model) renderConversations(maxLines int) string {
+	lines := []string{"Conversations"}
+	start, end := visibleBounds(len(m.conversations), m.cursor, maxLines-1)
+	for index := start; index < end; index++ {
+		conversation := m.conversations[index]
+		count := conversation.MessageCount
+		if count == 0 {
+			count = len(conversation.MessageIDs)
+		}
+		lines = append(lines, row(index == m.cursor, fmt.Sprintf("%s  %d messages  %s", conversation.Subject, count, conversation.LastMessageAt.Format("2006-01-02"))))
+	}
+	if len(m.conversations) == 0 && maxLines > 1 {
 		lines = append(lines, "No conversations")
 	}
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) renderConversation() string {
+func (m Model) renderConversation(maxLines int) string {
 	lines := []string{"Conversation: " + m.detail.Conversation.Subject}
-	for index, message := range m.detail.Messages {
+	start, end := visibleBounds(len(m.detail.Messages), m.cursor, maxLines-1)
+	for index := start; index < end; index++ {
+		message := m.detail.Messages[index]
 		lines = append(lines, row(index == m.cursor, fmt.Sprintf("%s: %s", message.Sender, message.Subject)))
 	}
 	for _, claim := range m.detail.Claims {
+		if len(lines) >= maxLines {
+			break
+		}
 		lines = append(lines, "claim "+claim.Name+": "+string(claim.Value))
 	}
 	for _, receipt := range m.detail.Receipts {
+		if len(lines) >= maxLines {
+			break
+		}
 		lines = append(lines, fmt.Sprintf("%s receipt: %s [%s]", receipt.Kind, receipt.Summary, receipt.Status))
 	}
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) renderRules() string {
+func (m Model) renderRules(maxLines int) string {
 	lines := []string{"Effective rules"}
-	for index, rule := range m.rules {
+	start, end := visibleBounds(len(m.rules), m.cursor, maxLines-1)
+	for index := start; index < end; index++ {
+		rule := m.rules[index]
 		state := "enabled"
 		if !rule.Enabled {
 			state = "disabled"
@@ -452,15 +538,17 @@ func (m Model) renderRules() string {
 		}
 		lines = append(lines, row(index == m.cursor, fmt.Sprintf("%s [%s; %s] → %s", rule.Name, origin, state, actionsText(rule.Actions))))
 	}
-	if len(m.rules) == 0 {
+	if len(m.rules) == 0 && maxLines > 1 {
 		lines = append(lines, "No rules")
 	}
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) renderSchedules() string {
+func (m Model) renderSchedules(maxLines int) string {
 	lines := []string{"Schedules"}
-	for index, schedule := range m.schedules {
+	start, end := visibleBounds(len(m.schedules), m.cursor, maxLines-1)
+	for index := start; index < end; index++ {
+		schedule := m.schedules[index]
 		state := "disabled"
 		if schedule.Enabled {
 			state = "enabled"
@@ -471,24 +559,26 @@ func (m Model) renderSchedules() string {
 		}
 		lines = append(lines, row(index == m.cursor, fmt.Sprintf("%s [%s] every %s; last %s", schedule.Name, state, (time.Duration(schedule.EverySeconds)*time.Second).String(), last)))
 	}
-	if len(m.schedules) == 0 {
+	if len(m.schedules) == 0 && maxLines > 1 {
 		lines = append(lines, "No schedules")
 	}
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) renderPlans() string {
+func (m Model) renderPlans(maxLines int) string {
 	lines := []string{"Plans"}
-	for index, plan := range m.plans {
+	start, end := visibleBounds(len(m.plans), m.cursor, maxLines-1)
+	for index := start; index < end; index++ {
+		plan := m.plans[index]
 		lines = append(lines, row(index == m.cursor, fmt.Sprintf("%s [%s] %d operations", plan.Name, plan.Status, len(plan.Operations))))
 	}
-	if len(m.plans) == 0 {
+	if len(m.plans) == 0 && maxLines > 1 {
 		lines = append(lines, "No plans")
 	}
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) renderPalette() string {
+func (m Model) renderPalette(maxLines int) string {
 	lines := []string{"Command: " + m.paletteText}
 	switch m.phase {
 	case paletteInput:
@@ -504,26 +594,60 @@ func (m Model) renderPalette() string {
 	case palettePreview:
 		lines = append(lines, fmt.Sprintf("Scope: %d targets (shown before plan creation)", m.preview.ScopeCount))
 		for _, group := range m.preview.Groups {
+			if len(lines) >= maxLines-2 {
+				break
+			}
 			lines = append(lines, fmt.Sprintf("%s: %d; samples: %s", group.Name, group.Count, strings.Join(group.Samples, ", ")))
 		}
-		if len(m.preview.Outliers) > 0 {
+		if len(m.preview.Outliers) > 0 && len(lines) < maxLines-1 {
 			lines = append(lines, fmt.Sprintf("Outliers: %d", len(m.preview.Outliers)))
 		}
-		for index, operation := range m.preview.Plan.Operations {
+		operationLines := max(0, maxLines-len(lines)-1)
+		start, end := visibleBounds(len(m.preview.Plan.Operations), m.cursor, operationLines)
+		for index := start; index < end; index++ {
+			operation := m.preview.Plan.Operations[index]
 			mark := " "
 			if m.selected[operation.ID] {
 				mark = "x"
 			}
 			lines = append(lines, row(index == m.cursor, fmt.Sprintf("[%s] %s %s", mark, operation.Kind, operation.TargetID)))
 		}
-		if m.preview.Plan.Status == "draft" {
+		if m.preview.Plan.Status == "draft" && len(lines) < maxLines {
 			lines = append(lines, "[space] approve/reject item  [f] freeze and approve plan")
 		}
-		if m.preview.Plan.Status == "frozen" {
+		if m.preview.Plan.Status == "frozen" && len(lines) < maxLines {
 			lines = append(lines, "Plan is frozen and approved. [a] apply")
 		}
 	}
+	if len(lines) > maxLines {
+		lines = lines[:maxLines]
+	}
 	return strings.Join(lines, "\n")
+}
+
+func visibleBounds(total, cursor, limit int) (int, int) {
+	if total <= 0 || limit <= 0 {
+		return 0, 0
+	}
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor >= total {
+		cursor = total - 1
+	}
+	start := 0
+	if cursor >= limit {
+		start = cursor - limit + 1
+	}
+	end := min(total, start+limit)
+	return start, end
+}
+
+func boundedCursor(cursor, total int) int {
+	if total <= 0 || cursor < 0 {
+		return 0
+	}
+	return min(cursor, total-1)
 }
 
 func row(selected bool, value string) string {
