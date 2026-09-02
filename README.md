@@ -11,6 +11,30 @@ Mailbox changes are previewed before they are applied.
 - [Ollama](https://ollama.com/)
 - OAuth credentials for Gmail or Outlook
 
+### Local acceleration
+
+Mailman calls Ollama through its local HTTP API, so the Mailman binary does not
+link against Metal or CUDA and uses the same code on every platform.
+
+- **Apple Silicon:** install the native macOS Ollama application. Ollama uses
+  Metal acceleration automatically on supported Apple hardware. See Ollama's
+  [macOS requirements](https://docs.ollama.com/macos).
+- **NVIDIA on Linux:** install the NVIDIA driver and native Linux Ollama package,
+  then confirm that `nvidia-smi` can see the GPU. Ollama detects supported CUDA
+  GPUs automatically. See Ollama's [Linux installation](https://docs.ollama.com/linux)
+  and [hardware support](https://docs.ollama.com/gpu).
+
+After running one model request, verify where Ollama loaded the model:
+
+```sh
+ollama ps
+```
+
+The `PROCESSOR` column reports whether execution is on the GPU, CPU, or split
+between them. On macOS, use native Ollama rather than Docker Desktop when GPU
+acceleration is required because Docker Desktop does not expose the Apple GPU
+to Ollama.
+
 For Gmail, create a **Desktop app** OAuth client in Google Cloud and enable the
 Gmail API. Keep its client ID and client secret ready.
 

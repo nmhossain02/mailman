@@ -24,3 +24,25 @@ jobs:
       - run: go vet ./...
         env:
           CGO_ENABLED: '0'
+
+  portability-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - { os: darwin, arch: arm64, name: apple-silicon }
+          - { os: darwin, arch: amd64, name: mac-intel }
+          - { os: linux, arch: amd64, name: linux-cuda-host }
+          - { os: linux, arch: arm64, name: linux-arm64 }
+    name: build (${{ matrix.target.name }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go build -trimpath -o "${RUNNER_TEMP}/mailman" ./cmd/mailman
+        env:
+          CGO_ENABLED: '0'
+          GOOS: ${{ matrix.target.os }}
+          GOARCH: ${{ matrix.target.arch }}
